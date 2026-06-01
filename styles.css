@@ -43,7 +43,7 @@ button {
 
 .game-shell {
   position: relative;
-  width: min(1120px, calc(100% - 32px));
+  width: min(500px, calc(100% - 24px));
   margin: 0 auto;
   padding: 30px 0 40px;
 }
@@ -80,7 +80,7 @@ p {
 h1 {
   margin-bottom: 0;
   font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
-  font-size: clamp(2.5rem, 6vw, 5rem);
+  font-size: clamp(2.5rem, 11vw, 4.4rem);
   font-weight: 400;
   letter-spacing: 0.035em;
   line-height: 0.92;
@@ -184,7 +184,7 @@ canvas {
   display: block;
   width: 100%;
   height: auto;
-  aspect-ratio: 48 / 31;
+  aspect-ratio: 43 / 90;
   touch-action: none;
 }
 
@@ -258,6 +258,7 @@ kbd {
 }
 
 .lower-grid {
+  display: grid;
   align-items: stretch;
   margin-top: 10px;
 }
@@ -266,14 +267,6 @@ kbd {
   padding: 16px;
   border: 1px solid var(--line);
   background: var(--panel);
-}
-
-.controls {
-  flex: 0 0 35%;
-}
-
-.power-guide {
-  flex: 1;
 }
 
 .panel p {
@@ -328,7 +321,7 @@ kbd {
 
 @media (max-width: 700px) {
   .game-shell {
-    width: min(100% - 20px, 650px);
+    width: min(100% - 20px, 500px);
     padding-top: 20px;
   }
 

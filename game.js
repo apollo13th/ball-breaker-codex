@@ -16,8 +16,8 @@
 
   const WIDTH = canvas.width;
   const HEIGHT = canvas.height;
-  const BASE_PADDLE_WIDTH = 126;
-  const BASE_BALL_RADIUS = 9;
+  const BASE_PADDLE_WIDTH = 92;
+  const BASE_BALL_RADIUS = 8;
   const EFFECT_DURATION = 15000;
   const POWERUP_TYPES = ["grow", "shield", "big"];
   const POWERUP_CONFIG = {
@@ -40,20 +40,21 @@
   let activeEffects = { growUntil: 0, bigUntil: 0, shield: false };
   let powerups = [];
   let particles = [];
+  let brickShards = [];
 
   const paddle = {
     x: WIDTH / 2 - BASE_PADDLE_WIDTH / 2,
     y: HEIGHT - 56,
     width: BASE_PADDLE_WIDTH,
     height: 13,
-    speed: 610,
+    speed: 430,
   };
 
   const ball = {
     x: WIDTH / 2,
     y: paddle.y - BASE_BALL_RADIUS - 2,
-    vx: 250,
-    vy: -370,
+    vx: 195,
+    vy: -330,
     radius: BASE_BALL_RADIUS,
     launched: false,
   };
@@ -61,22 +62,22 @@
   let bricks = [];
 
   function createBricks() {
-    const rows = 6;
-    const columns = 10;
-    const gap = 8;
-    const sidePadding = 44;
-    const top = 67;
+    const rows = 7;
+    const columns = 6;
+    const gap = 7;
+    const sidePadding = 18;
+    const top = 62;
     const brickWidth = (WIDTH - sidePadding * 2 - gap * (columns - 1)) / columns;
-    const palette = ["#7ee2ff", "#66c5ff", "#8c9cff", "#bf8cff", "#f987ca", "#ffe56b"];
+    const palette = ["#7ee2ff", "#66c5ff", "#8c9cff", "#bf8cff", "#f987ca", "#ffe56b", "#ffad66"];
     bricks = [];
 
     for (let row = 0; row < rows; row += 1) {
       for (let column = 0; column < columns; column += 1) {
         bricks.push({
           x: sidePadding + column * (brickWidth + gap),
-          y: top + row * 32,
+          y: top + row * 31,
           width: brickWidth,
-          height: 20,
+          height: 21,
           color: palette[row],
           alive: true,
           points: (rows - row) * 20,
@@ -86,7 +87,7 @@
   }
 
   function resetBall(direction = 1) {
-    ball.radius = activeEffects.bigUntil > performance.now() ? 16 : BASE_BALL_RADIUS;
+    ball.radius = activeEffects.bigUntil > performance.now() ? 14 : BASE_BALL_RADIUS;
     ball.x = paddle.x + paddle.width / 2;
     ball.y = paddle.y - ball.radius - 3;
     ball.vx = direction * (230 + level * 18);
@@ -102,6 +103,7 @@
     nextDropType = 0;
     powerups = [];
     particles = [];
+    brickShards = [];
     activeEffects = { growUntil: 0, bigUntil: 0, shield: false };
     paddle.width = BASE_PADDLE_WIDTH;
     paddle.x = WIDTH / 2 - paddle.width / 2;
@@ -185,12 +187,12 @@
 
   function updateEffects(now) {
     const previousWidth = paddle.width;
-    paddle.width = activeEffects.growUntil > now ? 208 : BASE_PADDLE_WIDTH;
+    paddle.width = activeEffects.growUntil > now ? 154 : BASE_PADDLE_WIDTH;
     if (paddle.width !== previousWidth) {
       paddle.x = clamp(paddle.x - (paddle.width - previousWidth) / 2, 0, WIDTH - paddle.width);
     }
 
-    ball.radius = activeEffects.bigUntil > now ? 16 : BASE_BALL_RADIUS;
+    ball.radius = activeEffects.bigUntil > now ? 14 : BASE_BALL_RADIUS;
   }
 
   function updateBall(deltaSeconds) {
@@ -250,6 +252,7 @@
       score += brick.points + combo * 5;
       reflectBallFromBrick(brick);
       burst(ball.x, ball.y, brick.color, 12);
+      shatterBrick(brick);
       playTone(340 + combo * 14, 0.05, "square");
 
       if ((score + brick.points + combo) % 4 === 0 || Math.random() < 0.19) {
@@ -366,6 +369,15 @@
       particle.life -= deltaSeconds;
     }
     particles = particles.filter((particle) => particle.life > 0);
+
+    for (const shard of brickShards) {
+      shard.x += shard.vx * deltaSeconds;
+      shard.y += shard.vy * deltaSeconds;
+      shard.vy += 310 * deltaSeconds;
+      shard.rotation += shard.rotationSpeed * deltaSeconds;
+      shard.life -= deltaSeconds;
+    }
+    brickShards = brickShards.filter((shard) => shard.life > 0);
   }
 
   function burst(x, y, color, count) {
@@ -381,6 +393,34 @@
         color,
         life: 0.3 + Math.random() * 0.4,
       });
+    }
+  }
+
+  function shatterBrick(brick) {
+    const columns = 4;
+    const rows = 2;
+    const shardWidth = brick.width / columns;
+    const shardHeight = brick.height / rows;
+
+    for (let row = 0; row < rows; row += 1) {
+      for (let column = 0; column < columns; column += 1) {
+        const x = brick.x + shardWidth * (column + 0.5);
+        const y = brick.y + shardHeight * (row + 0.5);
+        const direction = x < brick.x + brick.width / 2 ? -1 : 1;
+        brickShards.push({
+          x,
+          y,
+          width: shardWidth - 1,
+          height: shardHeight - 1,
+          vx: direction * (28 + Math.random() * 95),
+          vy: -55 - Math.random() * 150,
+          rotation: 0,
+          rotationSpeed: (Math.random() - 0.5) * 12,
+          color: brick.color,
+          life: 0.72 + Math.random() * 0.28,
+          maxLife: 1,
+        });
+      }
     }
   }
 
@@ -502,6 +542,20 @@
   }
 
   function drawParticles() {
+    for (const shard of brickShards) {
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, shard.life * 1.6);
+      ctx.translate(shard.x, shard.y);
+      ctx.rotate(shard.rotation);
+      ctx.fillStyle = shard.color;
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = shard.color;
+      ctx.fillRect(-shard.width / 2, -shard.height / 2, shard.width, shard.height);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.32)";
+      ctx.fillRect(-shard.width / 2 + 1, -shard.height / 2 + 1, shard.width - 2, 2);
+      ctx.restore();
+    }
+
     for (const particle of particles) {
       ctx.globalAlpha = Math.min(1, particle.life * 2);
       ctx.fillStyle = particle.color;
@@ -611,6 +665,13 @@
   window.__ballBreaker = {
     activatePowerup,
     simulateMiss: handleMiss,
+    simulateBrickBreak: () => {
+      const brick = bricks.find((candidate) => candidate.alive);
+      if (brick) {
+        brick.alive = false;
+        shatterBrick(brick);
+      }
+    },
     getSnapshot: () => ({
       state,
       score,
@@ -621,6 +682,7 @@
       paddleWidth: paddle.width,
       ballRadius: ball.radius,
       ballLaunched: ball.launched,
+      brickShardCount: brickShards.length,
     }),
   };
 
