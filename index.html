@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Ball Breaker Codex: a neon brick breaker game with paddle, shield, and big ball power-ups."
+    />
+    <title>Ball Breaker Codex</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="game-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">CODEX ARCADE // 01</p>
+          <h1>Ball Breaker <span>Codex</span></h1>
+        </div>
+        <button id="sound-toggle" class="icon-button" type="button" aria-label="Mute game sounds">
+          <span aria-hidden="true">SOUND ON</span>
+        </button>
+      </header>
+
+      <section class="hud" aria-label="Game stats">
+        <div class="stat">
+          <span class="stat-label">Score</span>
+          <strong id="score">00000</strong>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Lives</span>
+          <strong id="lives">3</strong>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Wave</span>
+          <strong id="level">01</strong>
+        </div>
+        <div class="power-status" aria-label="Active power-ups">
+          <span class="stat-label">Active Boosts</span>
+          <div id="active-powerups" class="power-chips">
+            <span class="empty-power">No boosts active</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="game-frame" aria-label="Ball Breaker Codex game">
+        <canvas id="game" width="960" height="620">
+          Your browser needs canvas support to play Ball Breaker Codex.
+        </canvas>
+        <div id="overlay" class="overlay">
+          <div class="overlay-card">
+            <p id="overlay-kicker" class="eyebrow">READY PLAYER</p>
+            <h2 id="overlay-title">Break the grid.</h2>
+            <p id="overlay-copy">
+              Move the paddle, catch falling power-ups, and clear every brick.
+            </p>
+            <button id="start-button" class="start-button" type="button">Start Game</button>
+            <p class="keyboard-note">Press <kbd>Space</kbd> to start or pause</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="lower-grid">
+        <article class="controls panel">
+          <p class="eyebrow">CONTROLS</p>
+          <p><kbd>&larr;</kbd> <kbd>&rarr;</kbd> or mouse / touch to move</p>
+          <p><kbd>Space</kbd> to launch and pause</p>
+        </article>
+        <article class="power-guide panel">
+          <p class="eyebrow">POWER-UP DROPS</p>
+          <div class="power-list">
+            <span class="power-key grow">G</span>
+            <p><strong>Wide Loadout</strong> grows your paddle for 15 seconds.</p>
+            <span class="power-key shield">S</span>
+            <p><strong>Shield Wall</strong> blocks one missed ball.</p>
+            <span class="power-key big">B</span>
+            <p><strong>Big Ball</strong> supersizes the ball for 15 seconds.</p>
+          </div>
+        </article>
+      </section>
+    </main>
+    <script src="game.js"></script>
+  </body>
+</html>
