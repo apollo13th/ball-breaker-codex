@@ -880,10 +880,11 @@
     if (!ball.stuck || !stickyAim) {
       return;
     }
+    const segments = getAimPreviewSegments();
+    drawAimImpactHighlights(segments);
     ctx.fillStyle = "#ffad66";
     ctx.globalAlpha = 0.8;
     let carry = 0;
-    const segments = getAimPreviewSegments();
     for (const segment of segments) {
       const dx = segment.end.x - segment.start.x;
       const dy = segment.end.y - segment.start.y;
@@ -897,14 +898,42 @@
       }
       carry = (18 - ((length - carry) % 18)) % 18;
     }
-    for (const bounce of segments.slice(0, -1).map((segment) => segment.end)) {
-      ctx.strokeStyle = "#ffad66";
+    for (const bounceSegment of segments.slice(0, -1)) {
+      const bounce = bounceSegment.end;
+      ctx.strokeStyle = bounceSegment.hitType === "brick" ? "#ffe7a8" : "#ffad66";
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(bounce.x, bounce.y, 6, 0, Math.PI * 2);
       ctx.stroke();
+      if (bounceSegment.hitType === "brick") {
+        ctx.fillStyle = "#ffe7a8";
+        ctx.beginPath();
+        ctx.arc(bounce.x, bounce.y, 2.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#ffad66";
+      }
     }
     ctx.globalAlpha = 1;
+  }
+
+  function drawAimImpactHighlights(segments) {
+    const highlightedBricks = new Set();
+    for (const segment of segments) {
+      if (segment.hitType !== "brick" || !segment.hitBrick || highlightedBricks.has(segment.hitBrick.id)) {
+        continue;
+      }
+      highlightedBricks.add(segment.hitBrick.id);
+      ctx.save();
+      ctx.globalAlpha = 0.7;
+      ctx.fillStyle = "rgba(255, 173, 102, 0.12)";
+      ctx.fillRect(segment.hitBrick.x - 2, segment.hitBrick.y - 2, segment.hitBrick.width + 4, segment.hitBrick.height + 4);
+      ctx.strokeStyle = "#ffe7a8";
+      ctx.lineWidth = 2;
+      ctx.shadowBlur = 14;
+      ctx.shadowColor = "#ffad66";
+      ctx.strokeRect(segment.hitBrick.x - 2, segment.hitBrick.y - 2, segment.hitBrick.width + 4, segment.hitBrick.height + 4);
+      ctx.restore();
+    }
   }
 
   function getAimPreviewSegments() {
@@ -920,7 +949,7 @@
 
     for (let ricochet = 0; ricochet < 3; ricochet += 1) {
       const hit = traceAimPreviewCollision(start, velocity);
-      segments.push({ start, end: hit.point, hitType: hit.type });
+      segments.push({ start, end: hit.point, hitType: hit.type, hitBrick: hit.brick || null });
       velocity = reflectPreviewVelocity(velocity, hit.axis);
       start = {
         x: hit.point.x + velocity.x * 0.6,
@@ -961,6 +990,7 @@
     return {
       axis: hit.axis,
       type: hit.type,
+      brick: hit.brick || null,
       point: {
         x: start.x + velocity.x * hit.distance,
         y: start.y + velocity.y * hit.distance,
@@ -1004,6 +1034,7 @@
       axis,
       distance: entryTime,
       type: "brick",
+      brick,
     };
   }
 
