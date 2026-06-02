@@ -31,7 +31,7 @@
     grow: { label: "Wide Paddle", letter: "G", color: "#7ee2ff" },
     shield: { label: "Shield Ready", letter: "S", color: "#bf8cff" },
     big: { label: "Big Ball", letter: "B", color: "#ffe56b" },
-    sticky: { label: "Sticky Paddle", letter: "K", color: "#ffad66" },
+    sticky: { label: "Directional Shot", letter: "K", color: "#ffad66" },
     ghost: { label: "Phase Ball", letter: "P", color: "#5fffd4" },
     tiny: { label: "Tiny Ball", letter: "T", color: "#ff8f70" },
     narrow: { label: "Narrow Paddle", letter: "N", color: "#ff668f" },
@@ -46,7 +46,7 @@
   let lives = 3;
   let level = 1;
   let combo = 0;
-  let nextDropType = 0;
+  let powerupBag = [];
   let keys = { left: false, right: false };
   let activeEffects = createEmptyEffects();
   let powerups = [];
@@ -142,7 +142,7 @@
     lives = 3;
     level = 1;
     combo = 0;
-    nextDropType = 0;
+    powerupBag = [];
     powerups = [];
     particles = [];
     brickShards = [];
@@ -163,9 +163,7 @@
     }
     state = "playing";
     overlay.classList.add("hidden");
-    if (window.matchMedia("(max-width: 700px)").matches) {
-      requestAnimationFrame(() => gameFrame.scrollIntoView({ behavior: "smooth", block: "start" }));
-    }
+    scrollArenaIntoView();
     playTone(320, 0.08);
   }
 
@@ -204,6 +202,7 @@
         const length = Math.hypot(dx, dy) || 1;
         ball.vx = (dx / length) * speed;
         ball.vy = (dy / length) * speed;
+        activeEffects.sticky = false;
       }
       ball.launched = true;
       ball.stuck = false;
@@ -346,7 +345,7 @@
         reflectBallFromBrick(brick);
         increaseBallSpeed(1.012);
       }
-      damageBrick(brick);
+      damageBrick(brick, false, activeEffects.bigUntil > performance.now() ? 2 : 1);
       if (activeEffects.ghostUntil <= performance.now()) {
         break;
       }
@@ -361,8 +360,8 @@
     }
   }
 
-  function damageBrick(brick, fromExplosion = false) {
-    brick.hp -= 1;
+  function damageBrick(brick, fromExplosion = false, damage = 1) {
+    brick.hp -= damage;
     burst(ball.x, ball.y, brick.color, brick.hp <= 0 ? 12 : 6);
     playTone(340 + combo * 14, 0.05, "square");
     if (brick.hp > 0) {
@@ -397,7 +396,7 @@
         if (Math.abs(brick.row - current.row) <= 1 && Math.abs(brick.column - current.column) <= 1) {
           exploded.add(brick.id);
           brick.hp = 1;
-          damageBrick(brick, true);
+          damageBrick(brick, true, brick.hp);
           destroyed += 1;
           if (brick.bomb) {
             queue.push(brick);
@@ -471,8 +470,7 @@
   }
 
   function spawnPowerup(brick) {
-    const type = POWERUP_TYPES[nextDropType % POWERUP_TYPES.length];
-    nextDropType += 1;
+    const type = drawPowerupType();
     powerups.push({
       x: brick.x + brick.width / 2,
       y: brick.y + brick.height / 2,
@@ -480,6 +478,17 @@
       vy: 156,
       type,
     });
+  }
+
+  function drawPowerupType() {
+    if (!powerupBag.length) {
+      powerupBag = [...POWERUP_TYPES];
+      for (let index = powerupBag.length - 1; index > 0; index -= 1) {
+        const swapIndex = Math.floor(Math.random() * (index + 1));
+        [powerupBag[index], powerupBag[swapIndex]] = [powerupBag[swapIndex], powerupBag[index]];
+      }
+    }
+    return powerupBag.pop();
   }
 
   function updatePowerups(deltaSeconds, now) {
@@ -617,7 +626,7 @@
       chips.push(`<span class="power-chip big">Big ball ${secondsLeft(activeEffects.bigUntil, now)}s</span>`);
     }
     if (activeEffects.sticky) {
-      chips.push('<span class="power-chip sticky">Sticky paddle</span>');
+      chips.push('<span class="power-chip sticky">Directional shot</span>');
     }
     if (activeEffects.ghostUntil > now) {
       chips.push(`<span class="power-chip ghost">Phase ${secondsLeft(activeEffects.ghostUntil, now)}s</span>`);
@@ -798,19 +807,74 @@
     if (!ball.stuck || !stickyAim) {
       return;
     }
-    const dx = stickyAim.x - ball.x;
-    const dy = stickyAim.y - ball.y;
-    const length = Math.hypot(dx, dy) || 1;
-    const ux = dx / length;
-    const uy = dy / length;
     ctx.fillStyle = "#ffad66";
     ctx.globalAlpha = 0.8;
-    for (let distance = 18; distance < Math.min(length, 230); distance += 18) {
+    let carry = 0;
+    const segments = getAimPreviewSegments();
+    for (const segment of segments) {
+      const dx = segment.end.x - segment.start.x;
+      const dy = segment.end.y - segment.start.y;
+      const length = Math.hypot(dx, dy) || 1;
+      const ux = dx / length;
+      const uy = dy / length;
+      for (let distance = carry || 18; distance < length; distance += 18) {
+        ctx.beginPath();
+        ctx.arc(segment.start.x + ux * distance, segment.start.y + uy * distance, 2.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      carry = (18 - ((length - carry) % 18)) % 18;
+    }
+    if (segments.length > 1) {
+      const bounce = segments[0].end;
+      ctx.strokeStyle = "#ffad66";
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(ball.x + ux * distance, ball.y + uy * distance, 2.4, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.arc(bounce.x, bounce.y, 6, 0, Math.PI * 2);
+      ctx.stroke();
     }
     ctx.globalAlpha = 1;
+  }
+
+  function getAimPreviewSegments() {
+    if (!ball.stuck || !stickyAim) {
+      return [];
+    }
+    const dx = stickyAim.x - ball.x;
+    const dy = Math.min(stickyAim.y - ball.y, -20);
+    const length = Math.hypot(dx, dy) || 1;
+    const velocity = { x: dx / length, y: dy / length };
+    const first = traceToArenaWall({ x: ball.x, y: ball.y }, velocity);
+    const reflected = {
+      x: first.axis === "x" ? -velocity.x : velocity.x,
+      y: first.axis === "y" ? -velocity.y : velocity.y,
+    };
+    const second = traceToArenaWall(first.point, reflected);
+    return [
+      { start: { x: ball.x, y: ball.y }, end: first.point },
+      { start: first.point, end: second.point },
+    ];
+  }
+
+  function traceToArenaWall(start, velocity) {
+    const distances = [];
+    if (velocity.x < 0) {
+      distances.push({ distance: (ball.radius - start.x) / velocity.x, axis: "x" });
+    } else if (velocity.x > 0) {
+      distances.push({ distance: (WIDTH - ball.radius - start.x) / velocity.x, axis: "x" });
+    }
+    if (velocity.y < 0) {
+      distances.push({ distance: (ball.radius - start.y) / velocity.y, axis: "y" });
+    } else if (velocity.y > 0) {
+      distances.push({ distance: (paddle.y - ball.radius - start.y) / velocity.y, axis: "y" });
+    }
+    const hit = distances.filter((candidate) => candidate.distance > 0.01).sort((a, b) => a.distance - b.distance)[0];
+    return {
+      axis: hit.axis,
+      point: {
+        x: start.x + velocity.x * hit.distance,
+        y: start.y + velocity.y * hit.distance,
+      },
+    };
   }
 
   function drawLaunchPrompt() {
@@ -902,6 +966,13 @@
       return;
     }
     launchBall();
+    scrollArenaIntoView();
+  }
+
+  function scrollArenaIntoView() {
+    if (window.matchMedia("(max-width: 700px)").matches) {
+      requestAnimationFrame(() => gameFrame.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
   }
 
   function holdDirection(direction, held) {
@@ -999,6 +1070,12 @@
         damageBrick(brick);
       }
     },
+    simulateBigBallHit: () => {
+      const brick = bricks.find((candidate) => candidate.alive && candidate.maxHp > 1);
+      if (brick) {
+        damageBrick(brick, false, 2);
+      }
+    },
     simulateStickyCatch: () => {
       activeEffects.sticky = true;
       ball.x = paddle.x + paddle.width / 2;
@@ -1014,6 +1091,7 @@
         shatterBrick(brick);
       }
     },
+    drawPowerupSequence: (count) => Array.from({ length: count }, drawPowerupType),
     getSnapshot: () => ({
       state,
       score,
@@ -1035,6 +1113,11 @@
       tinyActive: activeEffects.tinyUntil > performance.now(),
       narrowActive: activeEffects.narrowUntil > performance.now(),
       stickyActive: activeEffects.sticky,
+      aimPreviewSegmentCount: getAimPreviewSegments().length,
+      aimPreviewLength: Math.round(getAimPreviewSegments().reduce(
+        (total, segment) => total + Math.hypot(segment.end.x - segment.start.x, segment.end.y - segment.start.y),
+        0,
+      )),
     }),
   };
 
