@@ -919,37 +919,98 @@
     let velocity = { x: dx / length, y: dy / length };
 
     for (let ricochet = 0; ricochet < 3; ricochet += 1) {
-      const hit = traceToArenaWall(start, velocity);
-      segments.push({ start, end: hit.point });
-      start = hit.point;
-      velocity = {
-        x: hit.axis === "x" ? -velocity.x : velocity.x,
-        y: hit.axis === "y" ? -velocity.y : velocity.y,
+      const hit = traceAimPreviewCollision(start, velocity);
+      segments.push({ start, end: hit.point, hitType: hit.type });
+      velocity = reflectPreviewVelocity(velocity, hit.axis);
+      start = {
+        x: hit.point.x + velocity.x * 0.6,
+        y: hit.point.y + velocity.y * 0.6,
       };
     }
 
     return segments;
   }
 
-  function traceToArenaWall(start, velocity) {
+  function traceAimPreviewCollision(start, velocity) {
     const distances = [];
     if (velocity.x < 0) {
-      distances.push({ distance: (ball.radius - start.x) / velocity.x, axis: "x" });
+      distances.push({ distance: (ball.radius - start.x) / velocity.x, axis: "x", type: "wall" });
     } else if (velocity.x > 0) {
-      distances.push({ distance: (WIDTH - ball.radius - start.x) / velocity.x, axis: "x" });
+      distances.push({ distance: (WIDTH - ball.radius - start.x) / velocity.x, axis: "x", type: "wall" });
     }
     if (velocity.y < 0) {
-      distances.push({ distance: (ball.radius - start.y) / velocity.y, axis: "y" });
+      distances.push({ distance: (ball.radius - start.y) / velocity.y, axis: "y", type: "wall" });
     } else if (velocity.y > 0) {
-      distances.push({ distance: (paddle.y - ball.radius - start.y) / velocity.y, axis: "y" });
+      distances.push({ distance: (paddle.y - ball.radius - start.y) / velocity.y, axis: "y", type: "wall" });
     }
-    const hit = distances.filter((candidate) => candidate.distance > 0.01).sort((a, b) => a.distance - b.distance)[0];
+
+    for (const brick of bricks) {
+      if (!brick.alive) {
+        continue;
+      }
+      const hit = tracePreviewBrickCollision(start, velocity, brick);
+      if (hit) {
+        distances.push(hit);
+      }
+    }
+
+    const hit = distances
+      .filter((candidate) => candidate.distance > 0.01)
+      .sort((a, b) => a.distance - b.distance)[0];
+
     return {
       axis: hit.axis,
+      type: hit.type,
       point: {
         x: start.x + velocity.x * hit.distance,
         y: start.y + velocity.y * hit.distance,
       },
+    };
+  }
+
+  function tracePreviewBrickCollision(start, velocity, brick) {
+    const minX = brick.x - ball.radius;
+    const maxX = brick.x + brick.width + ball.radius;
+    const minY = brick.y - ball.radius;
+    const maxY = brick.y + brick.height + ball.radius;
+
+    const xEntry = velocity.x === 0
+      ? Number.NEGATIVE_INFINITY
+      : ((velocity.x > 0 ? minX : maxX) - start.x) / velocity.x;
+    const xExit = velocity.x === 0
+      ? Number.POSITIVE_INFINITY
+      : ((velocity.x > 0 ? maxX : minX) - start.x) / velocity.x;
+    const yEntry = velocity.y === 0
+      ? Number.NEGATIVE_INFINITY
+      : ((velocity.y > 0 ? minY : maxY) - start.y) / velocity.y;
+    const yExit = velocity.y === 0
+      ? Number.POSITIVE_INFINITY
+      : ((velocity.y > 0 ? maxY : minY) - start.y) / velocity.y;
+
+    const entryTime = Math.max(xEntry, yEntry);
+    const exitTime = Math.min(xExit, yExit);
+    if (entryTime <= 0.01 || entryTime > exitTime) {
+      return null;
+    }
+
+    let axis = "x";
+    if (Math.abs(xEntry - yEntry) <= 0.0001) {
+      axis = "xy";
+    } else if (yEntry > xEntry) {
+      axis = "y";
+    }
+
+    return {
+      axis,
+      distance: entryTime,
+      type: "brick",
+    };
+  }
+
+  function reflectPreviewVelocity(velocity, axis) {
+    return {
+      x: axis === "x" || axis === "xy" ? -velocity.x : velocity.x,
+      y: axis === "y" || axis === "xy" ? -velocity.y : velocity.y,
     };
   }
 
@@ -1177,33 +1238,37 @@
       }
     },
     drawPowerupSequence: (count) => Array.from({ length: count }, drawPowerupType),
-    getSnapshot: () => ({
-      state,
-      score,
-      lives,
-      level,
-      bricksRemaining: bricks.filter((brick) => brick.alive).length,
-      shieldReady: activeEffects.shield,
-      paddleWidth: paddle.width,
-      paddleX: Math.round(paddle.x),
-      ballRadius: ball.radius,
-      ballLaunched: ball.launched,
-      brickShardCount: brickShards.length,
-      shockwaveCount: shockwaves.length,
-      bombCount: bricks.filter((brick) => brick.alive && brick.bomb).length,
-      damagedBrickCount: bricks.filter((brick) => brick.alive && brick.hp < brick.maxHp).length,
-      maxBrickHp: Math.max(...bricks.filter((brick) => brick.alive).map((brick) => brick.maxHp), 0),
-      ballStuck: ball.stuck,
-      ghostActive: activeEffects.ghostUntil > performance.now(),
-      tinyActive: activeEffects.tinyUntil > performance.now(),
-      narrowActive: activeEffects.narrowUntil > performance.now(),
-      stickyActive: activeEffects.sticky,
-      aimPreviewSegmentCount: getAimPreviewSegments().length,
-      aimPreviewLength: Math.round(getAimPreviewSegments().reduce(
-        (total, segment) => total + Math.hypot(segment.end.x - segment.start.x, segment.end.y - segment.start.y),
-        0,
-      )),
-    }),
+    getSnapshot: () => {
+      const aimSegments = getAimPreviewSegments();
+      return {
+        state,
+        score,
+        lives,
+        level,
+        bricksRemaining: bricks.filter((brick) => brick.alive).length,
+        shieldReady: activeEffects.shield,
+        paddleWidth: paddle.width,
+        paddleX: Math.round(paddle.x),
+        ballRadius: ball.radius,
+        ballLaunched: ball.launched,
+        brickShardCount: brickShards.length,
+        shockwaveCount: shockwaves.length,
+        bombCount: bricks.filter((brick) => brick.alive && brick.bomb).length,
+        damagedBrickCount: bricks.filter((brick) => brick.alive && brick.hp < brick.maxHp).length,
+        maxBrickHp: Math.max(...bricks.filter((brick) => brick.alive).map((brick) => brick.maxHp), 0),
+        ballStuck: ball.stuck,
+        ghostActive: activeEffects.ghostUntil > performance.now(),
+        tinyActive: activeEffects.tinyUntil > performance.now(),
+        narrowActive: activeEffects.narrowUntil > performance.now(),
+        stickyActive: activeEffects.sticky,
+        aimPreviewSegmentCount: aimSegments.length,
+        aimPreviewLength: Math.round(aimSegments.reduce(
+          (total, segment) => total + Math.hypot(segment.end.x - segment.start.x, segment.end.y - segment.start.y),
+          0,
+        )),
+        aimPreviewBrickHits: aimSegments.filter((segment) => segment.hitType === "brick").length,
+      };
+    },
   };
 
   resetGame();
