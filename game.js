@@ -23,6 +23,8 @@
   const HEIGHT = canvas.height;
   const BASE_PADDLE_WIDTH = 92;
   const BASE_BALL_RADIUS = 8;
+  const NORMAL_BALL_SPEED = 430;
+  const TINY_BALL_SPEED = NORMAL_BALL_SPEED * 1.5;
   const EFFECT_DURATION = 15000;
   const SHORT_EFFECT_DURATION = 10000;
   const NARROW_EFFECT_DURATION = 8000;
@@ -128,8 +130,9 @@
     ball.radius = activeEffects.bigUntil > now ? 14 : activeEffects.tinyUntil > now ? 4 : BASE_BALL_RADIUS;
     ball.x = paddle.x + paddle.width / 2;
     ball.y = paddle.y - ball.radius - 3;
-    ball.vx = direction * (230 + level * 18);
-    ball.vy = -(350 + level * 22);
+    const speed = getTargetBallSpeed(now);
+    ball.vx = direction * speed * 0.48;
+    ball.vy = -Math.sqrt(Math.max(speed * speed - ball.vx * ball.vx, 170 * 170));
     ball.launched = false;
     ball.stuck = false;
     ball.stuckOffset = 0;
@@ -198,7 +201,7 @@
       if (ball.stuck && stickyAim) {
         const dx = stickyAim.x - ball.x;
         const dy = Math.min(stickyAim.y - ball.y, -20);
-        const speed = 350 + level * 22;
+        const speed = getTargetBallSpeed();
         const length = Math.hypot(dx, dy) || 1;
         ball.vx = (dx / length) * speed;
         ball.vy = (dy / length) * speed;
@@ -264,6 +267,10 @@
     }
   }
 
+  function getTargetBallSpeed(now = performance.now()) {
+    return activeEffects.tinyUntil > now ? TINY_BALL_SPEED : NORMAL_BALL_SPEED;
+  }
+
   function updateBall(deltaSeconds) {
     if (!ball.launched) {
       ball.x = ball.stuck
@@ -279,7 +286,7 @@
     if (ball.x - ball.radius <= 0 || ball.x + ball.radius >= WIDTH) {
       ball.x = clamp(ball.x, ball.radius, WIDTH - ball.radius);
       ball.vx *= -1;
-      increaseBallSpeed(1.015);
+      normalizeBallSpeed();
       ball.lastBrickId = null;
       playTone(170, 0.04);
     }
@@ -287,7 +294,7 @@
     if (ball.y - ball.radius <= 0) {
       ball.y = ball.radius;
       ball.vy = Math.abs(ball.vy);
-      increaseBallSpeed(1.015);
+      normalizeBallSpeed();
       activeEffects.ghostUntil = 0;
       ball.lastBrickId = null;
       triggerShake(0.1, 3);
@@ -315,7 +322,7 @@
       }
 
       const hitPosition = (ball.x - (paddle.x + paddle.width / 2)) / (paddle.width / 2);
-      const speed = Math.min(Math.hypot(ball.vx, ball.vy) * 1.035, 720);
+      const speed = getTargetBallSpeed();
       ball.vx = speed * hitPosition * 0.86;
       ball.vy = -Math.sqrt(Math.max(speed * speed - ball.vx * ball.vx, 170 * 170));
       playTone(260, 0.045);
@@ -343,7 +350,7 @@
 
       if (activeEffects.ghostUntil <= performance.now()) {
         reflectBallFromBrick(brick);
-        increaseBallSpeed(1.012);
+        normalizeBallSpeed();
       }
       damageBrick(brick, false, activeEffects.bigUntil > performance.now() ? 2 : 1);
       if (activeEffects.ghostUntil <= performance.now()) {
@@ -423,14 +430,14 @@
     }
   }
 
-  function increaseBallSpeed(factor) {
+  function normalizeBallSpeed() {
     const speed = Math.hypot(ball.vx, ball.vy);
     if (!speed) {
       return;
     }
-    const nextSpeed = Math.min(speed * factor, 760);
-    ball.vx = (ball.vx / speed) * nextSpeed;
-    ball.vy = (ball.vy / speed) * nextSpeed;
+    const targetSpeed = getTargetBallSpeed();
+    ball.vx = (ball.vx / speed) * targetSpeed;
+    ball.vy = (ball.vy / speed) * targetSpeed;
   }
 
   function completeWave() {
@@ -531,6 +538,9 @@
     burst(paddle.x + paddle.width / 2, paddle.y, POWERUP_CONFIG[type].color, 18);
     playTone(type === "shield" ? 540 : 460, 0.13, "triangle");
     updateEffects(now);
+    if (ball.launched && (type === "big" || type === "tiny")) {
+      normalizeBallSpeed();
+    }
     updateHud(now);
   }
 
@@ -632,7 +642,7 @@
       chips.push(`<span class="power-chip ghost">Phase ${secondsLeft(activeEffects.ghostUntil, now)}s</span>`);
     }
     if (activeEffects.tinyUntil > now) {
-      chips.push(`<span class="power-chip tiny">Tiny ball ${secondsLeft(activeEffects.tinyUntil, now)}s</span>`);
+      chips.push(`<span class="power-chip tiny">Tiny ball ${secondsLeft(activeEffects.tinyUntil, now)}s 1.5x</span>`);
     }
     if (activeEffects.narrowUntil > now) {
       chips.push(`<span class="power-chip narrow">Narrow ${secondsLeft(activeEffects.narrowUntil, now)}s</span>`);
@@ -772,16 +782,44 @@
     if (!activeEffects.shield) {
       return;
     }
-    ctx.strokeStyle = "#bf8cff";
-    ctx.lineWidth = 4;
-    ctx.shadowBlur = 16;
+    const pulse = 0.55 + Math.sin(performance.now() / 170) * 0.45;
+    const shieldY = HEIGHT - 17;
+    const beam = ctx.createLinearGradient(0, shieldY, WIDTH, shieldY);
+    beam.addColorStop(0, "rgba(0, 0, 0, 0)");
+    beam.addColorStop(0.18, "rgba(191, 140, 255, 0.95)");
+    beam.addColorStop(0.5, "rgba(247, 232, 255, 1)");
+    beam.addColorStop(0.82, "rgba(191, 140, 255, 0.95)");
+    beam.addColorStop(1, "rgba(0, 0, 0, 0)");
+
+    ctx.save();
+    ctx.strokeStyle = beam;
+    ctx.lineWidth = 4 + pulse * 2;
+    ctx.shadowBlur = 12 + pulse * 18;
     ctx.shadowColor = "#bf8cff";
     ctx.beginPath();
-    ctx.moveTo(0, HEIGHT - 17);
-    ctx.lineTo(WIDTH, HEIGHT - 17);
+    ctx.moveTo(0, shieldY);
+    ctx.lineTo(WIDTH, shieldY);
     ctx.stroke();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = "#bf8cff";
+
+    ctx.lineWidth = 1.2;
+    ctx.globalAlpha = 0.42;
+    for (let x = 12; x < WIDTH; x += 24) {
+      ctx.beginPath();
+      ctx.moveTo(x, shieldY - 6);
+      ctx.lineTo(x + 10, shieldY + 6);
+      ctx.stroke();
+    }
+
+    ctx.globalAlpha = 1;
+    for (let x = 18; x < WIDTH; x += 72) {
+      ctx.fillStyle = "#f7e8ff";
+      ctx.beginPath();
+      ctx.arc(x, shieldY, 2.2 + pulse * 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    ctx.fillStyle = "#d9b9ff";
     ctx.font = "700 12px monospace";
     ctx.fillText("SHIELD WALL // ARMED", 14, HEIGHT - 27);
   }
@@ -859,8 +897,7 @@
       }
       carry = (18 - ((length - carry) % 18)) % 18;
     }
-    if (segments.length > 1) {
-      const bounce = segments[0].end;
+    for (const bounce of segments.slice(0, -1).map((segment) => segment.end)) {
       ctx.strokeStyle = "#ffad66";
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -877,17 +914,21 @@
     const dx = stickyAim.x - ball.x;
     const dy = Math.min(stickyAim.y - ball.y, -20);
     const length = Math.hypot(dx, dy) || 1;
-    const velocity = { x: dx / length, y: dy / length };
-    const first = traceToArenaWall({ x: ball.x, y: ball.y }, velocity);
-    const reflected = {
-      x: first.axis === "x" ? -velocity.x : velocity.x,
-      y: first.axis === "y" ? -velocity.y : velocity.y,
-    };
-    const second = traceToArenaWall(first.point, reflected);
-    return [
-      { start: { x: ball.x, y: ball.y }, end: first.point },
-      { start: first.point, end: second.point },
-    ];
+    const segments = [];
+    let start = { x: ball.x, y: ball.y };
+    let velocity = { x: dx / length, y: dy / length };
+
+    for (let ricochet = 0; ricochet < 3; ricochet += 1) {
+      const hit = traceToArenaWall(start, velocity);
+      segments.push({ start, end: hit.point });
+      start = hit.point;
+      velocity = {
+        x: hit.axis === "x" ? -velocity.x : velocity.x,
+        y: hit.axis === "y" ? -velocity.y : velocity.y,
+      };
+    }
+
+    return segments;
   }
 
   function traceToArenaWall(start, velocity) {
@@ -919,7 +960,11 @@
     ctx.fillStyle = "rgba(209, 248, 255, 0.8)";
     ctx.font = "700 12px monospace";
     ctx.textAlign = "center";
-    ctx.fillText(ball.stuck ? "AIM, THEN TAP PADDLE OR LAUNCH" : "PRESS SPACE OR TAP TO LAUNCH", WIDTH / 2, HEIGHT - 92);
+    ctx.fillText(
+      ball.stuck ? "AIM FOR TWO BOUNCES, THEN TAP PADDLE OR LAUNCH" : "PRESS SPACE OR TAP TO LAUNCH",
+      WIDTH / 2,
+      HEIGHT - 92
+    );
     ctx.textAlign = "start";
   }
 
