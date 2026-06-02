@@ -7,6 +7,7 @@
   const livesElement = document.querySelector("#lives");
   const levelElement = document.querySelector("#level");
   const powerupElement = document.querySelector("#active-powerups");
+  const gameFrame = document.querySelector(".game-frame");
   const overlay = document.querySelector("#overlay");
   const overlayKicker = document.querySelector("#overlay-kicker");
   const overlayTitle = document.querySelector("#overlay-title");
@@ -118,6 +119,9 @@
     }
     state = "playing";
     overlay.classList.add("hidden");
+    if (window.matchMedia("(max-width: 700px)").matches) {
+      requestAnimationFrame(() => gameFrame.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
     playTone(320, 0.08);
   }
 

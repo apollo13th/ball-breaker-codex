@@ -320,9 +320,20 @@ kbd {
 }
 
 @media (max-width: 700px) {
+  body {
+    min-height: 100svh;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  }
+
   .game-shell {
     width: min(100% - 20px, 500px);
     padding-top: 20px;
+  }
+
+  .game-frame {
+    width: min(100%, calc((100svh - env(safe-area-inset-bottom, 0px) - 16px) * 43 / 90));
+    margin-inline: auto;
+    scroll-margin-top: max(8px, env(safe-area-inset-top, 0px));
   }
 
   .hud {
