@@ -666,6 +666,7 @@
   }
 
   function drawBricks() {
+    const bombPulse = 0.5 + Math.sin(performance.now() / 145) * 0.5;
     for (const brick of bricks) {
       if (!brick.alive) {
         continue;
@@ -696,15 +697,49 @@
         ctx.stroke();
       }
       if (brick.bomb) {
-        ctx.fillStyle = "#fff1a8";
-        ctx.font = "700 13px monospace";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText("*", brick.x + brick.width / 2, brick.y + brick.height / 2 + 2);
-        ctx.textAlign = "start";
-        ctx.textBaseline = "alphabetic";
+        drawBombMarker(brick, bombPulse);
       }
     }
+  }
+
+  function drawBombMarker(brick, pulse) {
+    const centerX = brick.x + brick.width / 2;
+    const centerY = brick.y + brick.height / 2 + 1;
+    const radius = 5.2 + pulse * 0.7;
+
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.strokeStyle = `rgba(255, 126, 66, ${0.68 + pulse * 0.32})`;
+    ctx.lineWidth = 2 + pulse * 0.8;
+    ctx.shadowBlur = 10 + pulse * 12;
+    ctx.shadowColor = "#ff6a36";
+    ctx.strokeRect(brick.x - 2.5, brick.y - 2.5, brick.width + 5, brick.height + 5);
+
+    ctx.fillStyle = "#42100d";
+    ctx.strokeStyle = "#ffe7a8";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = "#ffe7a8";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(centerX + 3.3, centerY - 4);
+    ctx.quadraticCurveTo(centerX + 7, centerY - 8, centerX + 8.5, centerY - 5.5);
+    ctx.stroke();
+
+    ctx.fillStyle = pulse > 0.48 ? "#fff6b5" : "#ff7b42";
+    ctx.beginPath();
+    ctx.arc(centerX + 9.2, centerY - 6.5, 1.8 + pulse * 1.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#ffbd66";
+    ctx.beginPath();
+    ctx.arc(centerX - 1.5, centerY - 1.5, 1.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   }
 
   function drawPaddle() {
@@ -1062,6 +1097,11 @@
         origin.bomb = true;
         origin.hp = 1;
         damageBrick(origin);
+      }
+    },
+    showBombPreview: () => {
+      for (const brick of bricks.filter((candidate) => candidate.alive).slice(1, 6)) {
+        brick.bomb = true;
       }
     },
     simulateBrickHit: () => {
