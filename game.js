@@ -14,17 +14,27 @@
   const overlayCopy = document.querySelector("#overlay-copy");
   const startButton = document.querySelector("#start-button");
   const soundButton = document.querySelector("#sound-toggle");
+  const launchButton = document.querySelector("#launch-button");
+  const pauseButton = document.querySelector("#pause-button");
+  const moveLeftButton = document.querySelector("#move-left");
+  const moveRightButton = document.querySelector("#move-right");
 
   const WIDTH = canvas.width;
   const HEIGHT = canvas.height;
   const BASE_PADDLE_WIDTH = 92;
   const BASE_BALL_RADIUS = 8;
   const EFFECT_DURATION = 15000;
-  const POWERUP_TYPES = ["grow", "shield", "big"];
+  const SHORT_EFFECT_DURATION = 10000;
+  const NARROW_EFFECT_DURATION = 8000;
+  const POWERUP_TYPES = ["grow", "shield", "big", "sticky", "ghost", "tiny", "narrow"];
   const POWERUP_CONFIG = {
     grow: { label: "Wide Paddle", letter: "G", color: "#7ee2ff" },
     shield: { label: "Shield Ready", letter: "S", color: "#bf8cff" },
     big: { label: "Big Ball", letter: "B", color: "#ffe56b" },
+    sticky: { label: "Sticky Paddle", letter: "K", color: "#ffad66" },
+    ghost: { label: "Phase Ball", letter: "P", color: "#5fffd4" },
+    tiny: { label: "Tiny Ball", letter: "T", color: "#ff8f70" },
+    narrow: { label: "Narrow Paddle", letter: "N", color: "#ff668f" },
   };
 
   let soundEnabled = true;
@@ -38,10 +48,14 @@
   let combo = 0;
   let nextDropType = 0;
   let keys = { left: false, right: false };
-  let activeEffects = { growUntil: 0, bigUntil: 0, shield: false };
+  let activeEffects = createEmptyEffects();
   let powerups = [];
   let particles = [];
   let brickShards = [];
+  let shockwaves = [];
+  let shakeTime = 0;
+  let shakeAmount = 0;
+  let stickyAim = null;
 
   const paddle = {
     x: WIDTH / 2 - BASE_PADDLE_WIDTH / 2,
@@ -58,9 +72,24 @@
     vy: -330,
     radius: BASE_BALL_RADIUS,
     launched: false,
+    stuck: false,
+    stuckOffset: 0,
+    lastBrickId: null,
   };
 
   let bricks = [];
+
+  function createEmptyEffects() {
+    return {
+      growUntil: 0,
+      bigUntil: 0,
+      ghostUntil: 0,
+      tinyUntil: 0,
+      narrowUntil: 0,
+      sticky: false,
+      shield: false,
+    };
+  }
 
   function createBricks() {
     const rows = 7;
@@ -74,13 +103,20 @@
 
     for (let row = 0; row < rows; row += 1) {
       for (let column = 0; column < columns; column += 1) {
+        const maxHp = Math.min(4, 1 + Math.floor((level - 1 + Math.floor(row / 2)) / 2));
         bricks.push({
+          id: `${level}-${row}-${column}`,
           x: sidePadding + column * (brickWidth + gap),
           y: top + row * 31,
           width: brickWidth,
           height: 21,
           color: palette[row],
           alive: true,
+          row,
+          column,
+          bomb: level > 1 && Math.random() < Math.min(0.08 + level * 0.012, 0.2),
+          hp: maxHp,
+          maxHp,
           points: (rows - row) * 20,
         });
       }
@@ -88,12 +124,17 @@
   }
 
   function resetBall(direction = 1) {
-    ball.radius = activeEffects.bigUntil > performance.now() ? 14 : BASE_BALL_RADIUS;
+    const now = performance.now();
+    ball.radius = activeEffects.bigUntil > now ? 14 : activeEffects.tinyUntil > now ? 4 : BASE_BALL_RADIUS;
     ball.x = paddle.x + paddle.width / 2;
     ball.y = paddle.y - ball.radius - 3;
     ball.vx = direction * (230 + level * 18);
     ball.vy = -(350 + level * 22);
     ball.launched = false;
+    ball.stuck = false;
+    ball.stuckOffset = 0;
+    ball.lastBrickId = null;
+    stickyAim = null;
   }
 
   function resetGame() {
@@ -105,7 +146,10 @@
     powerups = [];
     particles = [];
     brickShards = [];
-    activeEffects = { growUntil: 0, bigUntil: 0, shield: false };
+    shockwaves = [];
+    activeEffects = createEmptyEffects();
+    shakeTime = 0;
+    shakeAmount = 0;
     paddle.width = BASE_PADDLE_WIDTH;
     paddle.x = WIDTH / 2 - paddle.width / 2;
     createBricks();
@@ -153,7 +197,17 @@
       return;
     }
     if (!ball.launched) {
+      if (ball.stuck && stickyAim) {
+        const dx = stickyAim.x - ball.x;
+        const dy = Math.min(stickyAim.y - ball.y, -20);
+        const speed = 350 + level * 22;
+        const length = Math.hypot(dx, dy) || 1;
+        ball.vx = (dx / length) * speed;
+        ball.vy = (dy / length) * speed;
+      }
       ball.launched = true;
+      ball.stuck = false;
+      stickyAim = null;
       playTone(410, 0.08);
     }
   }
@@ -191,17 +245,31 @@
 
   function updateEffects(now) {
     const previousWidth = paddle.width;
-    paddle.width = activeEffects.growUntil > now ? 154 : BASE_PADDLE_WIDTH;
+    if (activeEffects.growUntil > now) {
+      paddle.width = 154;
+    } else if (activeEffects.narrowUntil > now) {
+      paddle.width = 58;
+    } else {
+      paddle.width = BASE_PADDLE_WIDTH;
+    }
     if (paddle.width !== previousWidth) {
       paddle.x = clamp(paddle.x - (paddle.width - previousWidth) / 2, 0, WIDTH - paddle.width);
     }
 
-    ball.radius = activeEffects.bigUntil > now ? 14 : BASE_BALL_RADIUS;
+    if (activeEffects.bigUntil > now) {
+      ball.radius = 14;
+    } else if (activeEffects.tinyUntil > now) {
+      ball.radius = 4;
+    } else {
+      ball.radius = BASE_BALL_RADIUS;
+    }
   }
 
   function updateBall(deltaSeconds) {
     if (!ball.launched) {
-      ball.x = paddle.x + paddle.width / 2;
+      ball.x = ball.stuck
+        ? clamp(paddle.x + ball.stuckOffset, paddle.x + ball.radius, paddle.x + paddle.width - ball.radius)
+        : paddle.x + paddle.width / 2;
       ball.y = paddle.y - ball.radius - 3;
       return;
     }
@@ -212,12 +280,18 @@
     if (ball.x - ball.radius <= 0 || ball.x + ball.radius >= WIDTH) {
       ball.x = clamp(ball.x, ball.radius, WIDTH - ball.radius);
       ball.vx *= -1;
+      increaseBallSpeed(1.015);
+      ball.lastBrickId = null;
       playTone(170, 0.04);
     }
 
     if (ball.y - ball.radius <= 0) {
       ball.y = ball.radius;
       ball.vy = Math.abs(ball.vy);
+      increaseBallSpeed(1.015);
+      activeEffects.ghostUntil = 0;
+      ball.lastBrickId = null;
+      triggerShake(0.1, 3);
       playTone(190, 0.04);
     }
 
@@ -228,13 +302,23 @@
       ball.x >= paddle.x - ball.radius &&
       ball.x <= paddle.x + paddle.width + ball.radius
     ) {
+      ball.y = paddle.y - ball.radius - 1;
+      combo = 0;
+      ball.lastBrickId = null;
+      burst(ball.x, ball.y, "#7ee2ff", 7);
+      if (activeEffects.sticky) {
+        ball.launched = false;
+        ball.stuck = true;
+        ball.stuckOffset = ball.x - paddle.x;
+        stickyAim = { x: ball.x, y: ball.y - 170 };
+        playTone(380, 0.08, "triangle");
+        return;
+      }
+
       const hitPosition = (ball.x - (paddle.x + paddle.width / 2)) / (paddle.width / 2);
       const speed = Math.min(Math.hypot(ball.vx, ball.vy) * 1.035, 720);
       ball.vx = speed * hitPosition * 0.86;
       ball.vy = -Math.sqrt(Math.max(speed * speed - ball.vx * ball.vx, 170 * 170));
-      ball.y = paddle.y - ball.radius - 1;
-      combo = 0;
-      burst(ball.x, ball.y, "#7ee2ff", 7);
       playTone(260, 0.045);
     }
 
@@ -246,28 +330,85 @@
   }
 
   function checkBrickCollision() {
+    let collided = false;
     for (const brick of bricks) {
       if (!brick.alive || !circleHitsRect(ball, brick)) {
         continue;
       }
 
-      brick.alive = false;
-      combo += 1;
-      score += brick.points + combo * 5;
-      reflectBallFromBrick(brick);
-      burst(ball.x, ball.y, brick.color, 12);
-      shatterBrick(brick);
-      playTone(340 + combo * 14, 0.05, "square");
-
-      if ((score + brick.points + combo) % 4 === 0 || Math.random() < 0.19) {
-        spawnPowerup(brick);
+      collided = true;
+      if (ball.lastBrickId === brick.id) {
+        continue;
       }
+      ball.lastBrickId = brick.id;
 
-      if (bricks.every((candidate) => !candidate.alive)) {
-        completeWave();
+      if (activeEffects.ghostUntil <= performance.now()) {
+        reflectBallFromBrick(brick);
+        increaseBallSpeed(1.012);
       }
+      damageBrick(brick);
+      if (activeEffects.ghostUntil <= performance.now()) {
+        break;
+      }
+    }
+
+    if (!collided) {
+      ball.lastBrickId = null;
+    }
+
+    if (bricks.every((candidate) => !candidate.alive)) {
+      completeWave();
+    }
+  }
+
+  function damageBrick(brick, fromExplosion = false) {
+    brick.hp -= 1;
+    burst(ball.x, ball.y, brick.color, brick.hp <= 0 ? 12 : 6);
+    playTone(340 + combo * 14, 0.05, "square");
+    if (brick.hp > 0) {
+      triggerShake(0.08, 2);
       return;
     }
+
+    brick.alive = false;
+    combo += 1;
+    score += brick.points * brick.maxHp + combo * 5;
+    shatterBrick(brick);
+    triggerShake(0.12, 3 + brick.maxHp);
+    if (!fromExplosion && ((score + brick.points + combo) % 4 === 0 || Math.random() < 0.19)) {
+      spawnPowerup(brick);
+    }
+    if (brick.bomb && !fromExplosion) {
+      explodeBrick(brick);
+    }
+  }
+
+  function explodeBrick(origin) {
+    const queue = [origin];
+    const exploded = new Set([origin.id]);
+    let destroyed = 0;
+
+    while (queue.length) {
+      const current = queue.shift();
+      for (const brick of bricks) {
+        if (!brick.alive || exploded.has(brick.id)) {
+          continue;
+        }
+        if (Math.abs(brick.row - current.row) <= 1 && Math.abs(brick.column - current.column) <= 1) {
+          exploded.add(brick.id);
+          brick.hp = 1;
+          damageBrick(brick, true);
+          destroyed += 1;
+          if (brick.bomb) {
+            queue.push(brick);
+          }
+        }
+      }
+    }
+
+    shockwaves.push({ x: origin.x + origin.width / 2, y: origin.y + origin.height / 2, radius: 5, life: 0.55 });
+    triggerShake(0.25, Math.min(10, 5 + destroyed));
+    playTone(110, 0.2, "sawtooth");
   }
 
   function reflectBallFromBrick(brick) {
@@ -283,19 +424,23 @@
     }
   }
 
+  function increaseBallSpeed(factor) {
+    const speed = Math.hypot(ball.vx, ball.vy);
+    if (!speed) {
+      return;
+    }
+    const nextSpeed = Math.min(speed * factor, 760);
+    ball.vx = (ball.vx / speed) * nextSpeed;
+    ball.vy = (ball.vy / speed) * nextSpeed;
+  }
+
   function completeWave() {
     score += 1000 * level;
     level += 1;
     playTone(660, 0.18, "triangle");
-    if (level > 3) {
-      state = "won";
-      showOverlay("GRID CLEARED", "You broke the system.", `Final score: ${score.toLocaleString()}`, "Play Again");
-      ball.launched = false;
-      return;
-    }
-
     createBricks();
     resetBall(level % 2 ? 1 : -1);
+    updateHud();
   }
 
   function handleMiss() {
@@ -311,6 +456,9 @@
 
     lives -= 1;
     combo = 0;
+    activeEffects = createEmptyEffects();
+    powerups = [];
+    updateEffects(performance.now());
     playTone(100, 0.22, "sawtooth");
     if (lives <= 0) {
       state = "lost";
@@ -354,10 +502,22 @@
   function activatePowerup(type, now = performance.now()) {
     if (type === "grow") {
       activeEffects.growUntil = now + EFFECT_DURATION;
+      activeEffects.narrowUntil = 0;
     } else if (type === "big") {
       activeEffects.bigUntil = now + EFFECT_DURATION;
+      activeEffects.tinyUntil = 0;
     } else if (type === "shield") {
       activeEffects.shield = true;
+    } else if (type === "sticky") {
+      activeEffects.sticky = true;
+    } else if (type === "ghost") {
+      activeEffects.ghostUntil = now + SHORT_EFFECT_DURATION;
+    } else if (type === "tiny") {
+      activeEffects.tinyUntil = now + SHORT_EFFECT_DURATION;
+      activeEffects.bigUntil = 0;
+    } else if (type === "narrow") {
+      activeEffects.narrowUntil = now + NARROW_EFFECT_DURATION;
+      activeEffects.growUntil = 0;
     }
     burst(paddle.x + paddle.width / 2, paddle.y, POWERUP_CONFIG[type].color, 18);
     playTone(type === "shield" ? 540 : 460, 0.13, "triangle");
@@ -382,6 +542,19 @@
       shard.life -= deltaSeconds;
     }
     brickShards = brickShards.filter((shard) => shard.life > 0);
+
+    for (const shockwave of shockwaves) {
+      shockwave.radius += 230 * deltaSeconds;
+      shockwave.life -= deltaSeconds;
+    }
+    shockwaves = shockwaves.filter((shockwave) => shockwave.life > 0);
+
+    shakeTime = Math.max(0, shakeTime - deltaSeconds);
+  }
+
+  function triggerShake(duration, amount) {
+    shakeTime = Math.max(shakeTime, duration);
+    shakeAmount = Math.max(shakeAmount, amount);
   }
 
   function burst(x, y, color, count) {
@@ -443,6 +616,18 @@
     if (activeEffects.bigUntil > now) {
       chips.push(`<span class="power-chip big">Big ball ${secondsLeft(activeEffects.bigUntil, now)}s</span>`);
     }
+    if (activeEffects.sticky) {
+      chips.push('<span class="power-chip sticky">Sticky paddle</span>');
+    }
+    if (activeEffects.ghostUntil > now) {
+      chips.push(`<span class="power-chip ghost">Phase ${secondsLeft(activeEffects.ghostUntil, now)}s</span>`);
+    }
+    if (activeEffects.tinyUntil > now) {
+      chips.push(`<span class="power-chip tiny">Tiny ball ${secondsLeft(activeEffects.tinyUntil, now)}s</span>`);
+    }
+    if (activeEffects.narrowUntil > now) {
+      chips.push(`<span class="power-chip narrow">Narrow ${secondsLeft(activeEffects.narrowUntil, now)}s</span>`);
+    }
     powerupElement.innerHTML = chips.join("") || '<span class="empty-power">No boosts active</span>';
   }
 
@@ -478,21 +663,47 @@
       }
       ctx.fillStyle = brick.color;
       ctx.globalAlpha = 0.85;
+      if (brick.bomb) {
+        ctx.shadowBlur = 14;
+        ctx.shadowColor = "#ff7b42";
+      }
       ctx.fillRect(brick.x, brick.y, brick.width, brick.height);
+      ctx.shadowBlur = 0;
       ctx.globalAlpha = 1;
       ctx.fillStyle = "rgba(255, 255, 255, 0.28)";
       ctx.fillRect(brick.x + 3, brick.y + 3, brick.width - 6, 2);
       ctx.strokeStyle = brick.color;
       ctx.strokeRect(brick.x - 1, brick.y - 1, brick.width + 2, brick.height + 2);
+      if (brick.hp < brick.maxHp) {
+        ctx.strokeStyle = "rgba(2, 10, 14, 0.8)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(brick.x + brick.width * 0.34, brick.y + 3);
+        ctx.lineTo(brick.x + brick.width * 0.56, brick.y + brick.height - 3);
+        if (brick.hp < brick.maxHp - 1) {
+          ctx.moveTo(brick.x + brick.width * 0.68, brick.y + 2);
+          ctx.lineTo(brick.x + brick.width * 0.48, brick.y + brick.height - 2);
+        }
+        ctx.stroke();
+      }
+      if (brick.bomb) {
+        ctx.fillStyle = "#fff1a8";
+        ctx.font = "700 13px monospace";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("*", brick.x + brick.width / 2, brick.y + brick.height / 2 + 2);
+        ctx.textAlign = "start";
+        ctx.textBaseline = "alphabetic";
+      }
     }
   }
 
   function drawPaddle() {
     ctx.shadowBlur = 18;
-    ctx.shadowColor = "#7ee2ff";
-    ctx.fillStyle = "#d1f8ff";
+    ctx.shadowColor = activeEffects.sticky ? "#ffad66" : activeEffects.narrowUntil > performance.now() ? "#ff668f" : "#7ee2ff";
+    ctx.fillStyle = activeEffects.sticky ? "#ffe0a8" : activeEffects.narrowUntil > performance.now() ? "#ff9eb4" : "#d1f8ff";
     ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
-    ctx.fillStyle = "#7ee2ff";
+    ctx.fillStyle = activeEffects.sticky ? "#ffad66" : activeEffects.narrowUntil > performance.now() ? "#ff668f" : "#7ee2ff";
     ctx.fillRect(paddle.x + 6, paddle.y + 4, paddle.width - 12, 3);
     ctx.shadowBlur = 0;
   }
@@ -500,11 +711,17 @@
   function drawBall() {
     ctx.beginPath();
     ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-    ctx.fillStyle = "#ffffff";
+    ctx.globalAlpha = activeEffects.ghostUntil > performance.now() ? 0.58 : 1;
+    ctx.fillStyle = activeEffects.tinyUntil > performance.now() ? "#ffb093" : "#ffffff";
     ctx.shadowBlur = ball.radius * 2.2;
-    ctx.shadowColor = activeEffects.bigUntil > performance.now() ? "#ffe56b" : "#7ee2ff";
+    ctx.shadowColor = activeEffects.ghostUntil > performance.now()
+      ? "#5fffd4"
+      : activeEffects.bigUntil > performance.now()
+        ? "#ffe56b"
+        : "#7ee2ff";
     ctx.fill();
     ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
   }
 
   function drawShield() {
@@ -546,6 +763,15 @@
   }
 
   function drawParticles() {
+    for (const shockwave of shockwaves) {
+      ctx.globalAlpha = Math.min(1, shockwave.life * 2);
+      ctx.strokeStyle = "#ffad66";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(shockwave.x, shockwave.y, shockwave.radius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
     for (const shard of brickShards) {
       ctx.save();
       ctx.globalAlpha = Math.min(1, shard.life * 1.6);
@@ -568,6 +794,25 @@
     ctx.globalAlpha = 1;
   }
 
+  function drawAimLine() {
+    if (!ball.stuck || !stickyAim) {
+      return;
+    }
+    const dx = stickyAim.x - ball.x;
+    const dy = stickyAim.y - ball.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const ux = dx / length;
+    const uy = dy / length;
+    ctx.fillStyle = "#ffad66";
+    ctx.globalAlpha = 0.8;
+    for (let distance = 18; distance < Math.min(length, 230); distance += 18) {
+      ctx.beginPath();
+      ctx.arc(ball.x + ux * distance, ball.y + uy * distance, 2.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
   function drawLaunchPrompt() {
     if (ball.launched || state !== "playing") {
       return;
@@ -575,19 +820,27 @@
     ctx.fillStyle = "rgba(209, 248, 255, 0.8)";
     ctx.font = "700 12px monospace";
     ctx.textAlign = "center";
-    ctx.fillText("PRESS SPACE OR TAP TO LAUNCH", WIDTH / 2, HEIGHT - 92);
+    ctx.fillText(ball.stuck ? "AIM, THEN TAP PADDLE OR LAUNCH" : "PRESS SPACE OR TAP TO LAUNCH", WIDTH / 2, HEIGHT - 92);
     ctx.textAlign = "start";
   }
 
   function render() {
     drawBackground();
+    ctx.save();
+    if (shakeTime > 0) {
+      ctx.translate((Math.random() - 0.5) * shakeAmount, (Math.random() - 0.5) * shakeAmount);
+    } else {
+      shakeAmount = 0;
+    }
     drawBricks();
     drawShield();
     drawPaddle();
     drawBall();
     drawPowerups();
     drawParticles();
+    drawAimLine();
     drawLaunchPrompt();
+    ctx.restore();
   }
 
   function frame(timestamp) {
@@ -625,7 +878,51 @@
     paddle.x = clamp(canvasX - paddle.width / 2, 0, WIDTH - paddle.width);
   }
 
+  function canvasPoint(event) {
+    const bounds = canvas.getBoundingClientRect();
+    return {
+      x: ((event.clientX - bounds.left) / bounds.width) * WIDTH,
+      y: ((event.clientY - bounds.top) / bounds.height) * HEIGHT,
+    };
+  }
+
+  function pointNearPaddle(point) {
+    return point.x >= paddle.x - 26 &&
+      point.x <= paddle.x + paddle.width + 26 &&
+      point.y >= paddle.y - 50 &&
+      point.y <= paddle.y + paddle.height + 40;
+  }
+
+  function handleLaunchAction() {
+    if (state === "ready" || state === "lost") {
+      startGame();
+    }
+    if (state === "paused") {
+      togglePause();
+      return;
+    }
+    launchBall();
+  }
+
+  function holdDirection(direction, held) {
+    keys[direction] = held;
+  }
+
+  function bindHoldButton(button, direction) {
+    button.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      holdDirection(direction, true);
+    });
+    for (const eventName of ["pointerup", "pointercancel", "pointerleave"]) {
+      button.addEventListener(eventName, () => holdDirection(direction, false));
+    }
+  }
+
   startButton.addEventListener("click", startGame);
+  launchButton.addEventListener("click", handleLaunchAction);
+  pauseButton.addEventListener("click", togglePause);
+  bindHoldButton(moveLeftButton, "left");
+  bindHoldButton(moveRightButton, "right");
   soundButton.addEventListener("click", () => {
     soundEnabled = !soundEnabled;
     soundButton.querySelector("span").textContent = soundEnabled ? "SOUND ON" : "SOUND OFF";
@@ -656,10 +953,23 @@
   });
 
   canvas.addEventListener("pointermove", (event) => {
+    if (ball.stuck) {
+      stickyAim = canvasPoint(event);
+      return;
+    }
     movePaddleTo(event.clientX);
   });
 
   canvas.addEventListener("pointerdown", (event) => {
+    const point = canvasPoint(event);
+    if (ball.stuck) {
+      if (pointNearPaddle(point)) {
+        launchBall();
+      } else {
+        stickyAim = point;
+      }
+      return;
+    }
     movePaddleTo(event.clientX);
     if (state === "playing") {
       launchBall();
@@ -669,6 +979,34 @@
   window.__ballBreaker = {
     activatePowerup,
     simulateMiss: handleMiss,
+    simulateWaveClear: () => {
+      for (const brick of bricks) {
+        brick.alive = false;
+      }
+      completeWave();
+    },
+    simulateBomb: () => {
+      const origin = bricks.find((brick) => brick.alive);
+      if (origin) {
+        origin.bomb = true;
+        origin.hp = 1;
+        damageBrick(origin);
+      }
+    },
+    simulateBrickHit: () => {
+      const brick = bricks.find((candidate) => candidate.alive && candidate.maxHp > 1);
+      if (brick) {
+        damageBrick(brick);
+      }
+    },
+    simulateStickyCatch: () => {
+      activeEffects.sticky = true;
+      ball.x = paddle.x + paddle.width / 2;
+      ball.y = paddle.y - ball.radius;
+      ball.vy = 180;
+      ball.launched = true;
+      updateBall(0);
+    },
     simulateBrickBreak: () => {
       const brick = bricks.find((candidate) => candidate.alive);
       if (brick) {
@@ -684,9 +1022,19 @@
       bricksRemaining: bricks.filter((brick) => brick.alive).length,
       shieldReady: activeEffects.shield,
       paddleWidth: paddle.width,
+      paddleX: Math.round(paddle.x),
       ballRadius: ball.radius,
       ballLaunched: ball.launched,
       brickShardCount: brickShards.length,
+      shockwaveCount: shockwaves.length,
+      bombCount: bricks.filter((brick) => brick.alive && brick.bomb).length,
+      damagedBrickCount: bricks.filter((brick) => brick.alive && brick.hp < brick.maxHp).length,
+      maxBrickHp: Math.max(...bricks.filter((brick) => brick.alive).map((brick) => brick.maxHp), 0),
+      ballStuck: ball.stuck,
+      ghostActive: activeEffects.ghostUntil > performance.now(),
+      tinyActive: activeEffects.tinyUntil > performance.now(),
+      narrowActive: activeEffects.narrowUntil > performance.now(),
+      stickyActive: activeEffects.sticky,
     }),
   };
 
