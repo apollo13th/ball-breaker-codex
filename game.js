@@ -57,6 +57,9 @@
   let shockwaves = [];
   let ballTrail = [];
   let ballPulse = { x: 1, y: 1, life: 0 };
+  let floatingTexts = [];
+  let waveBanner = null;
+  let bearMood = { type: "idle", life: 0 };
   let shakeTime = 0;
   let shakeAmount = 0;
   let stickyAim = null;
@@ -168,6 +171,9 @@
     shockwaves = [];
     ballTrail = [];
     ballPulse = { x: 1, y: 1, life: 0 };
+    floatingTexts = [];
+    waveBanner = null;
+    bearMood = { type: "idle", life: 0 };
     activeEffects = createEmptyEffects();
     shakeTime = 0;
     shakeAmount = 0;
@@ -184,6 +190,7 @@
     }
     state = "playing";
     overlay.classList.add("hidden");
+    bearReact("ready");
     scrollArenaIntoView();
     playTone(320, 0.08);
   }
@@ -395,14 +402,21 @@
     playTone(340 + combo * 14, 0.05, "square");
     if (brick.hp > 0) {
       triggerBallPulse(1.12, 0.9);
+      bearReact("tap");
       triggerShake(0.08, 2);
       return;
     }
 
     brick.alive = false;
     combo += 1;
-    score += brick.points * brick.maxHp + combo * 5;
+    const gained = brick.points * brick.maxHp + combo * 5;
+    score += gained;
+    addFloatingText(`+${gained}`, brick.x + brick.width / 2, brick.y + brick.height / 2, brick.glowColor);
+    if (combo >= 3) {
+      addFloatingText(`x${combo}`, brick.x + brick.width / 2, brick.y - 4, "#ffe89d");
+    }
     shatterBrick(brick);
+    bearReact(combo >= 4 ? "combo" : "hit");
     triggerShake(0.12, 3 + brick.maxHp);
     if (!fromExplosion && ((score + brick.points + combo) % 4 === 0 || Math.random() < 0.19)) {
       spawnPowerup(brick);
@@ -469,6 +483,8 @@
     playTone(660, 0.18, "triangle");
     createBricks();
     resetBall(level % 2 ? 1 : -1);
+    waveBanner = { text: `WAVE ${String(level).padStart(2, "0")}`, life: 1.8 };
+    bearReact("wave");
     updateHud();
   }
 
@@ -479,6 +495,8 @@
       ball.vy = -Math.abs(ball.vy);
       triggerBallPulse(0.82, 1.2);
       burst(ball.x, HEIGHT - 17, "#d5b4ff", 24);
+      addFloatingText("SAVED", ball.x, HEIGHT - 42, "#d5b4ff");
+      bearReact("shield");
       playTone(560, 0.16, "sawtooth");
       updateHud();
       return;
@@ -488,6 +506,7 @@
     combo = 0;
     activeEffects = createEmptyEffects();
     powerups = [];
+    bearReact("sad");
     updateEffects(performance.now());
     playTone(100, 0.22, "sawtooth");
     if (lives <= 0) {
@@ -543,21 +562,28 @@
     if (type === "grow") {
       activeEffects.growUntil = now + EFFECT_DURATION;
       activeEffects.narrowUntil = 0;
+      bearReact("power");
     } else if (type === "big") {
       activeEffects.bigUntil = now + EFFECT_DURATION;
       activeEffects.tinyUntil = 0;
+      bearReact("power");
     } else if (type === "shield") {
       activeEffects.shield = true;
+      bearReact("shield");
     } else if (type === "sticky") {
       activeEffects.sticky = true;
+      bearReact("power");
     } else if (type === "ghost") {
       activeEffects.ghostUntil = now + SHORT_EFFECT_DURATION;
+      bearReact("power");
     } else if (type === "tiny") {
       activeEffects.tinyUntil = now + SHORT_EFFECT_DURATION;
       activeEffects.bigUntil = 0;
+      bearReact("power");
     } else if (type === "narrow") {
       activeEffects.narrowUntil = now + NARROW_EFFECT_DURATION;
       activeEffects.growUntil = 0;
+      bearReact("sad");
     }
     burst(paddle.x + paddle.width / 2, paddle.y, POWERUP_CONFIG[type].color, 18);
     playTone(type === "shield" ? 540 : 460, 0.13, "triangle");
@@ -608,6 +634,21 @@
       ballPulse.y = 1;
     }
 
+    for (const floater of floatingTexts) {
+      floater.y -= 34 * deltaSeconds;
+      floater.life -= deltaSeconds;
+    }
+    floatingTexts = floatingTexts.filter((floater) => floater.life > 0);
+
+    if (waveBanner) {
+      waveBanner.life -= deltaSeconds;
+      if (waveBanner.life <= 0) {
+        waveBanner = null;
+      }
+    }
+
+    bearMood.life = Math.max(0, bearMood.life - deltaSeconds * 1.35);
+
     shakeTime = Math.max(0, shakeTime - deltaSeconds);
   }
 
@@ -615,6 +656,20 @@
     ballPulse.x = xScale;
     ballPulse.y = yScale;
     ballPulse.life = 1;
+  }
+
+  function addFloatingText(text, x, y, color) {
+    floatingTexts.push({
+      text,
+      x,
+      y,
+      color,
+      life: 0.85,
+    });
+  }
+
+  function bearReact(type) {
+    bearMood = { type, life: 1 };
   }
 
   function triggerShake(duration, amount) {
@@ -767,17 +822,35 @@
   }
 
   function drawNeonBearBackdrop() {
+    const moodIntensity = bearMood.life;
+    const moodColor = getBearMoodColor();
     const bears = [
       { x: WIDTH * 0.21, y: HEIGHT * 0.19, scale: 0.56, color: "rgba(255, 184, 223, 0.12)" },
       { x: WIDTH * 0.77, y: HEIGHT * 0.24, scale: 0.72, color: "rgba(173, 219, 255, 0.11)" },
-      { x: WIDTH * 0.52, y: HEIGHT * 0.6, scale: 1.08, color: "rgba(212, 180, 255, 0.08)" },
+      { x: WIDTH * 0.52, y: HEIGHT * 0.6, scale: 1.08, color: moodIntensity > 0 ? moodColor : "rgba(212, 180, 255, 0.08)" },
     ];
-    for (const bear of bears) {
-      drawNeonBear(bear.x, bear.y, bear.scale, bear.color);
+    for (const [index, bear] of bears.entries()) {
+      drawNeonBear(bear.x, bear.y, bear.scale, bear.color, index === 2 ? bearMood.type : "idle", index === 2 ? moodIntensity : 0);
     }
   }
 
-  function drawNeonBear(x, y, scale, color) {
+  function getBearMoodColor() {
+    if (bearMood.type === "sad") {
+      return "rgba(159, 212, 255, 0.18)";
+    }
+    if (bearMood.type === "shield") {
+      return "rgba(213, 180, 255, 0.2)";
+    }
+    if (bearMood.type === "combo" || bearMood.type === "wave") {
+      return "rgba(255, 232, 157, 0.2)";
+    }
+    if (bearMood.type === "power") {
+      return "rgba(162, 255, 229, 0.18)";
+    }
+    return "rgba(255, 184, 223, 0.18)";
+  }
+
+  function drawNeonBear(x, y, scale, color, mood = "idle", intensity = 0) {
     const faceWidth = 92 * scale;
     const faceHeight = 80 * scale;
     const earRadius = 18 * scale;
@@ -785,7 +858,7 @@
     ctx.save();
     ctx.strokeStyle = color;
     ctx.shadowColor = color.replace(/0\.\d+\)/, "0.22)");
-    ctx.shadowBlur = 16 * scale;
+    ctx.shadowBlur = (16 + intensity * 18) * scale;
     ctx.lineWidth = 2.2 * scale;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -801,20 +874,43 @@
     roundedRectPath(x - faceWidth / 2, y - faceHeight / 2, faceWidth, faceHeight, 24 * scale);
     ctx.stroke();
 
-    ctx.beginPath();
-    ctx.arc(x - faceWidth * 0.18, y - faceHeight * 0.06, 3.4 * scale, 0, Math.PI * 2);
-    ctx.arc(x + faceWidth * 0.18, y - faceHeight * 0.06, 3.4 * scale, 0, Math.PI * 2);
-    ctx.stroke();
+    if (mood === "sad") {
+      ctx.beginPath();
+      ctx.moveTo(x - faceWidth * 0.23, y - faceHeight * 0.08);
+      ctx.lineTo(x - faceWidth * 0.12, y - faceHeight * 0.02);
+      ctx.moveTo(x + faceWidth * 0.23, y - faceHeight * 0.08);
+      ctx.lineTo(x + faceWidth * 0.12, y - faceHeight * 0.02);
+      ctx.stroke();
+    } else {
+      const eyeRadius = (3.4 + intensity * 1.6) * scale;
+      ctx.beginPath();
+      ctx.arc(x - faceWidth * 0.18, y - faceHeight * 0.06, eyeRadius, 0, Math.PI * 2);
+      ctx.arc(x + faceWidth * 0.18, y - faceHeight * 0.06, eyeRadius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
 
     ctx.beginPath();
     ctx.arc(x, y + faceHeight * 0.08, 11 * scale, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(x, y + faceHeight * 0.03);
-    ctx.lineTo(x - 5.5 * scale, y + faceHeight * 0.12);
-    ctx.lineTo(x + 5.5 * scale, y + faceHeight * 0.12);
-    ctx.closePath();
-    ctx.stroke();
+    if (mood === "sad") {
+      ctx.beginPath();
+      ctx.arc(x, y + faceHeight * 0.2, 8 * scale, Math.PI * 1.12, Math.PI * 1.88, true);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(x, y + faceHeight * 0.03);
+      ctx.lineTo(x - 5.5 * scale, y + faceHeight * 0.12);
+      ctx.lineTo(x + 5.5 * scale, y + faceHeight * 0.12);
+      ctx.closePath();
+      ctx.stroke();
+    }
+
+    if (intensity > 0) {
+      ctx.globalAlpha = Math.min(0.24, intensity * 0.24);
+      ctx.beginPath();
+      ctx.arc(x, y, (faceWidth * 0.68) + intensity * 16 * scale, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -1150,6 +1246,39 @@
     ctx.globalAlpha = 1;
   }
 
+  function drawFeedback() {
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    if (waveBanner) {
+      const alpha = Math.min(1, waveBanner.life);
+      ctx.globalAlpha = alpha;
+      ctx.font = "700 28px Impact, sans-serif";
+      ctx.fillStyle = "rgba(255, 248, 255, 0.92)";
+      ctx.shadowBlur = 22;
+      ctx.shadowColor = "#d5b4ff";
+      ctx.fillText(waveBanner.text, WIDTH / 2, HEIGHT * 0.46);
+      ctx.font = "700 11px monospace";
+      ctx.fillStyle = "rgba(155, 232, 255, 0.75)";
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = "#9be8ff";
+      ctx.fillText("PAWS UP", WIDTH / 2, HEIGHT * 0.46 + 30);
+    }
+
+    ctx.font = "700 13px monospace";
+    for (const floater of floatingTexts) {
+      ctx.globalAlpha = Math.min(1, floater.life * 1.4);
+      ctx.fillStyle = floater.color;
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = floater.color;
+      ctx.fillText(floater.text, floater.x, floater.y);
+    }
+
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
   function drawAimLine() {
     if (!ball.stuck || !stickyAim) {
       return;
@@ -1348,6 +1477,7 @@
     drawBall();
     drawPowerups();
     drawParticles();
+    drawFeedback();
     drawAimLine();
     drawLaunchPrompt();
     ctx.restore();
