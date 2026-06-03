@@ -1,14 +1,14 @@
 :root {
   color-scheme: dark;
-  --bg: #071018;
-  --panel: rgba(8, 24, 35, 0.86);
-  --line: rgba(126, 226, 255, 0.2);
-  --cyan: #7ee2ff;
-  --cyan-bright: #d1f8ff;
-  --purple: #bf8cff;
-  --yellow: #ffe56b;
-  --text: #f1fbff;
-  --muted: #91aeba;
+  --bg: #120f21;
+  --panel: rgba(18, 24, 42, 0.84);
+  --line: rgba(185, 229, 255, 0.22);
+  --cyan: #9be8ff;
+  --cyan-bright: #effdff;
+  --purple: #d5b4ff;
+  --yellow: #ffe89d;
+  --text: #f9fbff;
+  --muted: #afbdd7;
 }
 
 * {
@@ -20,9 +20,10 @@ body {
   margin: 0;
   color: var(--text);
   background:
-    radial-gradient(circle at 20% 0%, rgba(36, 154, 193, 0.2), transparent 30rem),
-    radial-gradient(circle at 80% 35%, rgba(115, 60, 190, 0.16), transparent 32rem),
-    linear-gradient(135deg, #050b11, #08141d 48%, #050a10);
+    radial-gradient(circle at 18% 0%, rgba(255, 184, 223, 0.24), transparent 26rem),
+    radial-gradient(circle at 80% 18%, rgba(173, 219, 255, 0.2), transparent 28rem),
+    radial-gradient(circle at 50% 100%, rgba(212, 180, 255, 0.16), transparent 32rem),
+    linear-gradient(135deg, #110f1f, #17233a 48%, #09131c);
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
@@ -31,8 +32,8 @@ body::before {
   inset: 0;
   pointer-events: none;
   content: "";
-  background-image: linear-gradient(rgba(126, 226, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(126, 226, 255, 0.035) 1px, transparent 1px);
+  background-image: linear-gradient(rgba(185, 229, 255, 0.032) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(185, 229, 255, 0.032) 1px, transparent 1px);
   background-size: 32px 32px;
   mask-image: linear-gradient(to bottom, black, transparent 85%);
 }
@@ -94,9 +95,9 @@ h1 span {
 
 .icon-button,
 .start-button {
-  border: 1px solid rgba(126, 226, 255, 0.55);
+  border: 1px solid rgba(185, 229, 255, 0.55);
   color: var(--cyan-bright);
-  background: rgba(126, 226, 255, 0.08);
+  background: rgba(185, 229, 255, 0.08);
   cursor: pointer;
   letter-spacing: 0.11em;
   text-transform: uppercase;
@@ -111,8 +112,8 @@ h1 span {
 .icon-button:hover,
 .start-button:hover {
   border-color: var(--cyan);
-  background: rgba(126, 226, 255, 0.18);
-  box-shadow: 0 0 24px rgba(126, 226, 255, 0.14);
+  background: rgba(185, 229, 255, 0.18);
+  box-shadow: 0 0 24px rgba(185, 229, 255, 0.14);
 }
 
 .hud {
@@ -195,9 +196,9 @@ h1 span {
 .game-frame {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(126, 226, 255, 0.45);
-  background: #040c12;
-  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.38), 0 0 45px rgba(126, 226, 255, 0.07);
+  border: 1px solid rgba(185, 229, 255, 0.45);
+  background: #0d1320;
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.38), 0 0 45px rgba(185, 229, 255, 0.08);
 }
 
 .mobile-controls {
@@ -209,9 +210,9 @@ h1 span {
 
 .control-button {
   min-height: 44px;
-  border: 1px solid rgba(126, 226, 255, 0.45);
+  border: 1px solid rgba(185, 229, 255, 0.42);
   color: var(--cyan-bright);
-  background: rgba(8, 24, 35, 0.94);
+  background: rgba(18, 24, 42, 0.92);
   cursor: pointer;
   font-size: 1rem;
   font-weight: 800;
@@ -251,7 +252,7 @@ canvas {
   display: grid;
   place-items: center;
   padding: 20px;
-  background: rgba(1, 8, 13, 0.66);
+  background: rgba(10, 10, 20, 0.62);
   backdrop-filter: blur(4px);
   transition: opacity 180ms ease;
 }
@@ -264,9 +265,9 @@ canvas {
 .overlay-card {
   width: min(500px, 100%);
   padding: 28px;
-  border: 1px solid rgba(126, 226, 255, 0.55);
-  background: rgba(5, 17, 25, 0.94);
-  box-shadow: 0 0 45px rgba(126, 226, 255, 0.12);
+  border: 1px solid rgba(185, 229, 255, 0.52);
+  background: rgba(16, 22, 38, 0.92);
+  box-shadow: 0 0 45px rgba(185, 229, 255, 0.12);
   text-align: center;
 }
 
@@ -306,10 +307,10 @@ h2 {
 
 kbd {
   padding: 2px 5px;
-  border: 1px solid rgba(126, 226, 255, 0.28);
+  border: 1px solid rgba(185, 229, 255, 0.28);
   border-bottom-width: 2px;
   color: var(--cyan-bright);
-  background: rgba(126, 226, 255, 0.08);
+  background: rgba(185, 229, 255, 0.08);
   font-family: inherit;
   font-size: 0.78rem;
 }

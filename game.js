@@ -55,6 +55,7 @@
   let particles = [];
   let brickShards = [];
   let shockwaves = [];
+  let ballTrail = [];
   let shakeTime = 0;
   let shakeAmount = 0;
   let stickyAim = null;
@@ -100,7 +101,7 @@
     const sidePadding = 18;
     const top = 62;
     const brickWidth = (WIDTH - sidePadding * 2 - gap * (columns - 1)) / columns;
-    const palette = ["#7ee2ff", "#66c5ff", "#8c9cff", "#bf8cff", "#f987ca", "#ffe56b", "#ffad66"];
+    const palette = ["#9be8ff", "#9fd4ff", "#b8b8ff", "#d9b4ff", "#ffb8df", "#ffe89d", "#ffc6a4"];
     bricks = [];
 
     for (let row = 0; row < rows; row += 1) {
@@ -137,6 +138,7 @@
     ball.stuck = false;
     ball.stuckOffset = 0;
     ball.lastBrickId = null;
+    ballTrail = [];
     stickyAim = null;
   }
 
@@ -150,6 +152,7 @@
     particles = [];
     brickShards = [];
     shockwaves = [];
+    ballTrail = [];
     activeEffects = createEmptyEffects();
     shakeTime = 0;
     shakeAmount = 0;
@@ -568,6 +571,11 @@
     }
     shockwaves = shockwaves.filter((shockwave) => shockwave.life > 0);
 
+    for (const trail of ballTrail) {
+      trail.life -= deltaSeconds;
+    }
+    ballTrail = ballTrail.filter((trail) => trail.life > 0);
+
     shakeTime = Math.max(0, shakeTime - deltaSeconds);
   }
 
@@ -654,12 +662,45 @@
     return Math.max(1, Math.ceil((until - now) / 1000));
   }
 
+  function roundedRectPath(x, y, width, height, radius) {
+    const r = Math.min(radius, width / 2, height / 2);
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + width - r, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+    ctx.lineTo(x + width, y + height - r);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+    ctx.lineTo(x + r, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+  }
+
   function drawBackground() {
     ctx.clearRect(0, 0, WIDTH, HEIGHT);
-    ctx.fillStyle = "#040c12";
+    const wash = ctx.createLinearGradient(0, 0, 0, HEIGHT);
+    wash.addColorStop(0, "#161328");
+    wash.addColorStop(0.42, "#121d2e");
+    wash.addColorStop(1, "#09131c");
+    ctx.fillStyle = wash;
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-    ctx.strokeStyle = "rgba(126, 226, 255, 0.05)";
+    const bloomLeft = ctx.createRadialGradient(WIDTH * 0.22, HEIGHT * 0.08, 10, WIDTH * 0.22, HEIGHT * 0.08, WIDTH * 0.72);
+    bloomLeft.addColorStop(0, "rgba(255, 184, 223, 0.28)");
+    bloomLeft.addColorStop(0.5, "rgba(173, 219, 255, 0.1)");
+    bloomLeft.addColorStop(1, "rgba(0, 0, 0, 0)");
+    ctx.fillStyle = bloomLeft;
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+    const bloomRight = ctx.createRadialGradient(WIDTH * 0.82, HEIGHT * 0.2, 16, WIDTH * 0.82, HEIGHT * 0.2, WIDTH * 0.56);
+    bloomRight.addColorStop(0, "rgba(212, 180, 255, 0.24)");
+    bloomRight.addColorStop(0.55, "rgba(155, 232, 255, 0.08)");
+    bloomRight.addColorStop(1, "rgba(0, 0, 0, 0)");
+    ctx.fillStyle = bloomRight;
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+    drawNeonBearBackdrop();
+
+    ctx.strokeStyle = "rgba(185, 229, 255, 0.06)";
     ctx.lineWidth = 1;
     for (let x = 0; x <= WIDTH; x += 32) {
       ctx.beginPath();
@@ -673,6 +714,58 @@
       ctx.lineTo(WIDTH, y);
       ctx.stroke();
     }
+  }
+
+  function drawNeonBearBackdrop() {
+    const bears = [
+      { x: WIDTH * 0.21, y: HEIGHT * 0.19, scale: 0.56, color: "rgba(255, 184, 223, 0.12)" },
+      { x: WIDTH * 0.77, y: HEIGHT * 0.24, scale: 0.72, color: "rgba(173, 219, 255, 0.11)" },
+      { x: WIDTH * 0.52, y: HEIGHT * 0.6, scale: 1.08, color: "rgba(212, 180, 255, 0.08)" },
+    ];
+    for (const bear of bears) {
+      drawNeonBear(bear.x, bear.y, bear.scale, bear.color);
+    }
+  }
+
+  function drawNeonBear(x, y, scale, color) {
+    const faceWidth = 92 * scale;
+    const faceHeight = 80 * scale;
+    const earRadius = 18 * scale;
+
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.shadowColor = color.replace(/0\.\d+\)/, "0.22)");
+    ctx.shadowBlur = 16 * scale;
+    ctx.lineWidth = 2.2 * scale;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    ctx.beginPath();
+    ctx.arc(x - faceWidth * 0.28, y - faceHeight * 0.42, earRadius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x + faceWidth * 0.28, y - faceHeight * 0.42, earRadius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.beginPath();
+    roundedRectPath(x - faceWidth / 2, y - faceHeight / 2, faceWidth, faceHeight, 24 * scale);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(x - faceWidth * 0.18, y - faceHeight * 0.06, 3.4 * scale, 0, Math.PI * 2);
+    ctx.arc(x + faceWidth * 0.18, y - faceHeight * 0.06, 3.4 * scale, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(x, y + faceHeight * 0.08, 11 * scale, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, y + faceHeight * 0.03);
+    ctx.lineTo(x - 5.5 * scale, y + faceHeight * 0.12);
+    ctx.lineTo(x + 5.5 * scale, y + faceHeight * 0.12);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
   }
 
   function drawBricks() {
@@ -754,25 +847,55 @@
 
   function drawPaddle() {
     ctx.shadowBlur = 18;
-    ctx.shadowColor = activeEffects.sticky ? "#ffad66" : activeEffects.narrowUntil > performance.now() ? "#ff668f" : "#7ee2ff";
-    ctx.fillStyle = activeEffects.sticky ? "#ffe0a8" : activeEffects.narrowUntil > performance.now() ? "#ff9eb4" : "#d1f8ff";
+    ctx.shadowColor = activeEffects.sticky ? "#ffc6a4" : activeEffects.narrowUntil > performance.now() ? "#ff8fc1" : "#9be8ff";
+    ctx.fillStyle = activeEffects.sticky ? "#fff0c7" : activeEffects.narrowUntil > performance.now() ? "#ffc1d7" : "#e7fcff";
     ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
-    ctx.fillStyle = activeEffects.sticky ? "#ffad66" : activeEffects.narrowUntil > performance.now() ? "#ff668f" : "#7ee2ff";
+    ctx.fillStyle = activeEffects.sticky ? "#ffc6a4" : activeEffects.narrowUntil > performance.now() ? "#ff8fc1" : "#9be8ff";
     ctx.fillRect(paddle.x + 6, paddle.y + 4, paddle.width - 12, 3);
     ctx.shadowBlur = 0;
   }
 
+  function drawBallTrail() {
+    if (!ballTrail.length) {
+      return;
+    }
+
+    const shadowColor = activeEffects.ghostUntil > performance.now()
+      ? "#8fffe0"
+      : activeEffects.bigUntil > performance.now()
+        ? "#ffeaa8"
+        : activeEffects.tinyUntil > performance.now()
+          ? "#ffd0bf"
+          : "#b9f0ff";
+
+    ctx.save();
+    for (let index = ballTrail.length - 1; index >= 0; index -= 1) {
+      const trail = ballTrail[index];
+      const alpha = Math.min(0.2, trail.life * 0.22) * ((ballTrail.length - index) / ballTrail.length);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = trail.color;
+      ctx.shadowBlur = trail.radius * 1.8;
+      ctx.shadowColor = shadowColor;
+      ctx.beginPath();
+      ctx.arc(trail.x, trail.y, trail.radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
   function drawBall() {
+    drawBallTrail();
     ctx.beginPath();
     ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
     ctx.globalAlpha = activeEffects.ghostUntil > performance.now() ? 0.58 : 1;
-    ctx.fillStyle = activeEffects.tinyUntil > performance.now() ? "#ffb093" : "#ffffff";
+    ctx.fillStyle = activeEffects.tinyUntil > performance.now() ? "#ffd0bf" : "#fffdfd";
     ctx.shadowBlur = ball.radius * 2.2;
     ctx.shadowColor = activeEffects.ghostUntil > performance.now()
-      ? "#5fffd4"
+      ? "#8fffe0"
       : activeEffects.bigUntil > performance.now()
-        ? "#ffe56b"
-        : "#7ee2ff";
+        ? "#ffeaa8"
+        : "#b9f0ff";
     ctx.fill();
     ctx.shadowBlur = 0;
     ctx.globalAlpha = 1;
@@ -1087,9 +1210,12 @@
       updateEffects(timestamp);
       updatePaddle(deltaSeconds);
       updateBall(deltaSeconds);
+      updateBallTrail(deltaSeconds);
       updatePowerups(deltaSeconds, timestamp);
       updateParticles(deltaSeconds);
       updateHud(timestamp);
+    } else if (!ball.launched) {
+      ballTrail = [];
     }
 
     render();
@@ -1106,6 +1232,36 @@
 
   function clamp(value, minimum, maximum) {
     return Math.max(minimum, Math.min(maximum, value));
+  }
+
+  function updateBallTrail(deltaSeconds) {
+    if (!ball.launched) {
+      ballTrail = [];
+      return;
+    }
+    const travel = Math.hypot(ball.vx, ball.vy) * deltaSeconds;
+    if (travel < 4) {
+      return;
+    }
+
+    const color = activeEffects.ghostUntil > performance.now()
+      ? "rgba(143, 255, 224, 0.8)"
+      : activeEffects.bigUntil > performance.now()
+        ? "rgba(255, 234, 168, 0.78)"
+        : activeEffects.tinyUntil > performance.now()
+          ? "rgba(255, 208, 191, 0.76)"
+          : "rgba(185, 240, 255, 0.76)";
+
+    ballTrail.unshift({
+      x: ball.x,
+      y: ball.y,
+      radius: Math.max(1.8, ball.radius * 0.84),
+      color,
+      life: 0.22,
+    });
+    if (ballTrail.length > 8) {
+      ballTrail.length = 8;
+    }
   }
 
   function movePaddleTo(clientX) {
