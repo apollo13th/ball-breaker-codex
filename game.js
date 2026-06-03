@@ -30,13 +30,13 @@
   const NARROW_EFFECT_DURATION = 8000;
   const POWERUP_TYPES = ["grow", "shield", "big", "sticky", "ghost", "tiny", "narrow"];
   const POWERUP_CONFIG = {
-    grow: { label: "Wide Paddle", letter: "G", color: "#7ee2ff" },
-    shield: { label: "Shield Ready", letter: "S", color: "#bf8cff" },
-    big: { label: "Big Ball", letter: "B", color: "#ffe56b" },
-    sticky: { label: "Directional Shot", letter: "K", color: "#ffad66" },
-    ghost: { label: "Phase Ball", letter: "P", color: "#5fffd4" },
-    tiny: { label: "Tiny Ball", letter: "T", color: "#ff8f70" },
-    narrow: { label: "Narrow Paddle", letter: "N", color: "#ff668f" },
+    grow: { label: "Wide Paddle", letter: "G", color: "#9be8ff" },
+    shield: { label: "Bear Shield", letter: "S", color: "#d5b4ff" },
+    big: { label: "Big Ball", letter: "B", color: "#ffe89d" },
+    sticky: { label: "Directional Shot", letter: "K", color: "#ffc6a4" },
+    ghost: { label: "Phase Ball", letter: "P", color: "#a2ffe5" },
+    tiny: { label: "Tiny Ball", letter: "T", color: "#ffc2ad" },
+    narrow: { label: "Narrow Paddle", letter: "N", color: "#ff9ac4" },
   };
 
   let soundEnabled = true;
@@ -56,6 +56,7 @@
   let brickShards = [];
   let shockwaves = [];
   let ballTrail = [];
+  let ballPulse = { x: 1, y: 1, life: 0 };
   let shakeTime = 0;
   let shakeAmount = 0;
   let stickyAim = null;
@@ -101,7 +102,15 @@
     const sidePadding = 18;
     const top = 62;
     const brickWidth = (WIDTH - sidePadding * 2 - gap * (columns - 1)) / columns;
-    const palette = ["#9be8ff", "#9fd4ff", "#b8b8ff", "#d9b4ff", "#ffb8df", "#ffe89d", "#ffc6a4"];
+    const palette = [
+      { base: "#91d7f4", top: "#d9f7ff", edge: "#6eb8d8", glow: "#abedff" },
+      { base: "#98c8ef", top: "#def2ff", edge: "#79acda", glow: "#b5ddff" },
+      { base: "#b5b0f4", top: "#ece9ff", edge: "#918ce0", glow: "#d1cbff" },
+      { base: "#d4afea", top: "#f6e4ff", edge: "#b48ad6", glow: "#e7c6ff" },
+      { base: "#f1b0d6", top: "#ffe4f3", edge: "#d98bb8", glow: "#ffcbe8" },
+      { base: "#f1dd94", top: "#fff2c8", edge: "#d2be6d", glow: "#ffeeb2" },
+      { base: "#efc0a4", top: "#ffe4d6", edge: "#d79a76", glow: "#ffd5bc" },
+    ];
     bricks = [];
 
     for (let row = 0; row < rows; row += 1) {
@@ -113,7 +122,10 @@
           y: top + row * 31,
           width: brickWidth,
           height: 21,
-          color: palette[row],
+          color: palette[row].base,
+          topColor: palette[row].top,
+          edgeColor: palette[row].edge,
+          glowColor: palette[row].glow,
           alive: true,
           row,
           column,
@@ -121,6 +133,7 @@
           hp: maxHp,
           maxHp,
           points: (rows - row) * 20,
+          flash: 0,
         });
       }
     }
@@ -139,6 +152,7 @@
     ball.stuckOffset = 0;
     ball.lastBrickId = null;
     ballTrail = [];
+    ballPulse = { x: 1, y: 1, life: 0 };
     stickyAim = null;
   }
 
@@ -153,6 +167,7 @@
     brickShards = [];
     shockwaves = [];
     ballTrail = [];
+    ballPulse = { x: 1, y: 1, life: 0 };
     activeEffects = createEmptyEffects();
     shakeTime = 0;
     shakeAmount = 0;
@@ -291,6 +306,7 @@
       ball.vx *= -1;
       normalizeBallSpeed();
       ball.lastBrickId = null;
+      triggerBallPulse(1.15, 0.88);
       playTone(170, 0.04);
     }
 
@@ -300,6 +316,7 @@
       normalizeBallSpeed();
       activeEffects.ghostUntil = 0;
       ball.lastBrickId = null;
+      triggerBallPulse(0.88, 1.15);
       triggerShake(0.1, 3);
       playTone(190, 0.04);
     }
@@ -314,7 +331,7 @@
       ball.y = paddle.y - ball.radius - 1;
       combo = 0;
       ball.lastBrickId = null;
-      burst(ball.x, ball.y, "#7ee2ff", 7);
+      burst(ball.x, ball.y, "#9be8ff", 7);
       if (activeEffects.sticky) {
         ball.launched = false;
         ball.stuck = true;
@@ -328,6 +345,7 @@
       const speed = getTargetBallSpeed();
       ball.vx = speed * hitPosition * 0.86;
       ball.vy = -Math.sqrt(Math.max(speed * speed - ball.vx * ball.vx, 170 * 170));
+      triggerBallPulse(1.2, 0.82);
       playTone(260, 0.045);
     }
 
@@ -372,9 +390,11 @@
 
   function damageBrick(brick, fromExplosion = false, damage = 1) {
     brick.hp -= damage;
+    brick.flash = 0.95;
     burst(ball.x, ball.y, brick.color, brick.hp <= 0 ? 12 : 6);
     playTone(340 + combo * 14, 0.05, "square");
     if (brick.hp > 0) {
+      triggerBallPulse(1.12, 0.9);
       triggerShake(0.08, 2);
       return;
     }
@@ -457,7 +477,8 @@
       activeEffects.shield = false;
       ball.y = HEIGHT - 20 - ball.radius;
       ball.vy = -Math.abs(ball.vy);
-      burst(ball.x, HEIGHT - 17, "#bf8cff", 24);
+      triggerBallPulse(0.82, 1.2);
+      burst(ball.x, HEIGHT - 17, "#d5b4ff", 24);
       playTone(560, 0.16, "sawtooth");
       updateHud();
       return;
@@ -576,7 +597,24 @@
     }
     ballTrail = ballTrail.filter((trail) => trail.life > 0);
 
+    for (const brick of bricks) {
+      brick.flash = Math.max(0, (brick.flash || 0) - deltaSeconds * 3.2);
+    }
+
+    if (ballPulse.life > 0) {
+      ballPulse.life = Math.max(0, ballPulse.life - deltaSeconds * 7.5);
+    } else {
+      ballPulse.x = 1;
+      ballPulse.y = 1;
+    }
+
     shakeTime = Math.max(0, shakeTime - deltaSeconds);
+  }
+
+  function triggerBallPulse(xScale, yScale) {
+    ballPulse.x = xScale;
+    ballPulse.y = yScale;
+    ballPulse.life = 1;
   }
 
   function triggerShake(duration, amount) {
@@ -638,7 +676,7 @@
       chips.push(`<span class="power-chip grow">Wide ${secondsLeft(activeEffects.growUntil, now)}s</span>`);
     }
     if (activeEffects.shield) {
-      chips.push('<span class="power-chip shield">Shield 1 hit</span>');
+      chips.push('<span class="power-chip shield">Bear shield 1 hit</span>');
     }
     if (activeEffects.bigUntil > now) {
       chips.push(`<span class="power-chip big">Big ball ${secondsLeft(activeEffects.bigUntil, now)}s</span>`);
@@ -678,9 +716,9 @@
   function drawBackground() {
     ctx.clearRect(0, 0, WIDTH, HEIGHT);
     const wash = ctx.createLinearGradient(0, 0, 0, HEIGHT);
-    wash.addColorStop(0, "#161328");
-    wash.addColorStop(0.42, "#121d2e");
-    wash.addColorStop(1, "#09131c");
+    wash.addColorStop(0, "#1a1730");
+    wash.addColorStop(0.42, "#152238");
+    wash.addColorStop(1, "#0a1520");
     ctx.fillStyle = wash;
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
@@ -700,6 +738,12 @@
 
     drawNeonBearBackdrop();
 
+    const lowerGlow = ctx.createLinearGradient(0, HEIGHT * 0.72, 0, HEIGHT);
+    lowerGlow.addColorStop(0, "rgba(255, 255, 255, 0)");
+    lowerGlow.addColorStop(1, "rgba(181, 222, 255, 0.08)");
+    ctx.fillStyle = lowerGlow;
+    ctx.fillRect(0, HEIGHT * 0.72, WIDTH, HEIGHT * 0.28);
+
     ctx.strokeStyle = "rgba(185, 229, 255, 0.06)";
     ctx.lineWidth = 1;
     for (let x = 0; x <= WIDTH; x += 32) {
@@ -714,6 +758,12 @@
       ctx.lineTo(WIDTH, y);
       ctx.stroke();
     }
+
+    const vignette = ctx.createRadialGradient(WIDTH / 2, HEIGHT * 0.48, HEIGHT * 0.16, WIDTH / 2, HEIGHT * 0.48, HEIGHT * 0.72);
+    vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
+    vignette.addColorStop(1, "rgba(7, 12, 20, 0.36)");
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
   }
 
   function drawNeonBearBackdrop() {
@@ -774,19 +824,57 @@
       if (!brick.alive) {
         continue;
       }
-      ctx.fillStyle = brick.color;
-      ctx.globalAlpha = 0.85;
+      const flash = brick.flash || 0;
+      const x = brick.x;
+      const y = brick.y;
+      const width = brick.width;
+      const height = brick.height;
+      const fill = ctx.createLinearGradient(x, y, x, y + height);
+      fill.addColorStop(0, brick.topColor);
+      fill.addColorStop(0.28, brick.color);
+      fill.addColorStop(1, brick.edgeColor);
+
+      ctx.save();
+      ctx.globalAlpha = 0.92;
+      ctx.shadowBlur = 10 + flash * 16;
+      ctx.shadowColor = brick.bomb ? "#ff9d7b" : brick.glowColor;
+      ctx.beginPath();
+      roundedRectPath(x, y, width, height, 6);
+      ctx.fillStyle = fill;
+      ctx.fill();
+      ctx.restore();
+
+      ctx.save();
+      ctx.globalAlpha = 0.32 + flash * 0.35;
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      roundedRectPath(x + 3, y + 3, width - 6, 4, 2);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.save();
+      ctx.strokeStyle = flash > 0 ? "#fff8ff" : brick.glowColor;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      roundedRectPath(x + 0.5, y + 0.5, width - 1, height - 1, 6);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(33, 45, 68, 0.55)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      roundedRectPath(x + 1.5, y + 1.5, width - 3, height - 3, 5);
+      ctx.stroke();
+      ctx.restore();
+
       if (brick.bomb) {
-        ctx.shadowBlur = 14;
-        ctx.shadowColor = "#ff7b42";
+        ctx.save();
+        ctx.globalAlpha = 0.22 + bombPulse * 0.12;
+        ctx.fillStyle = "rgba(255, 164, 118, 0.18)";
+        ctx.beginPath();
+        roundedRectPath(x - 2, y - 2, width + 4, height + 4, 7);
+        ctx.fill();
+        ctx.restore();
       }
-      ctx.fillRect(brick.x, brick.y, brick.width, brick.height);
-      ctx.shadowBlur = 0;
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = "rgba(255, 255, 255, 0.28)";
-      ctx.fillRect(brick.x + 3, brick.y + 3, brick.width - 6, 2);
-      ctx.strokeStyle = brick.color;
-      ctx.strokeRect(brick.x - 1, brick.y - 1, brick.width + 2, brick.height + 2);
+
       if (brick.hp < brick.maxHp) {
         ctx.strokeStyle = "rgba(2, 10, 14, 0.8)";
         ctx.lineWidth = 2;
@@ -842,17 +930,40 @@
     ctx.beginPath();
     ctx.arc(centerX - 1.5, centerY - 1.5, 1.6, 0, Math.PI * 2);
     ctx.fill();
+
+    ctx.strokeStyle = "rgba(66, 16, 13, 0.7)";
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.arc(centerX - 2.1, centerY - 0.7, 0.85, 0, Math.PI * 2);
+    ctx.arc(centerX + 2.1, centerY - 0.7, 0.85, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(centerX, centerY + 2.2, 2.1, Math.PI * 1.08, Math.PI * 1.92);
+    ctx.stroke();
     ctx.restore();
   }
 
   function drawPaddle() {
-    ctx.shadowBlur = 18;
-    ctx.shadowColor = activeEffects.sticky ? "#ffc6a4" : activeEffects.narrowUntil > performance.now() ? "#ff8fc1" : "#9be8ff";
-    ctx.fillStyle = activeEffects.sticky ? "#fff0c7" : activeEffects.narrowUntil > performance.now() ? "#ffc1d7" : "#e7fcff";
-    ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
-    ctx.fillStyle = activeEffects.sticky ? "#ffc6a4" : activeEffects.narrowUntil > performance.now() ? "#ff8fc1" : "#9be8ff";
-    ctx.fillRect(paddle.x + 6, paddle.y + 4, paddle.width - 12, 3);
-    ctx.shadowBlur = 0;
+    const topColor = activeEffects.sticky ? "#fff4d6" : activeEffects.narrowUntil > performance.now() ? "#ffd1e3" : "#f3fdff";
+    const baseColor = activeEffects.sticky ? "#ffc6a4" : activeEffects.narrowUntil > performance.now() ? "#ff9ec7" : "#9be8ff";
+    const paddleFill = ctx.createLinearGradient(paddle.x, paddle.y, paddle.x, paddle.y + paddle.height);
+    paddleFill.addColorStop(0, topColor);
+    paddleFill.addColorStop(0.55, baseColor);
+    paddleFill.addColorStop(1, "rgba(122, 167, 214, 0.92)");
+
+    ctx.save();
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = baseColor;
+    ctx.beginPath();
+    roundedRectPath(paddle.x, paddle.y, paddle.width, paddle.height, 6);
+    ctx.fillStyle = paddleFill;
+    ctx.fill();
+    ctx.restore();
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
+    ctx.beginPath();
+    roundedRectPath(paddle.x + 7, paddle.y + 3, paddle.width - 14, 3, 2);
+    ctx.fill();
   }
 
   function drawBallTrail() {
@@ -886,17 +997,28 @@
 
   function drawBall() {
     drawBallTrail();
+    const stretch = ballPulse.life > 0 ? ballPulse.life : 0;
+    const scaleX = 1 + (ballPulse.x - 1) * stretch;
+    const scaleY = 1 + (ballPulse.y - 1) * stretch;
+    ctx.save();
+    ctx.translate(ball.x, ball.y);
+    ctx.scale(scaleX, scaleY);
     ctx.beginPath();
-    ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+    ctx.arc(0, 0, ball.radius, 0, Math.PI * 2);
     ctx.globalAlpha = activeEffects.ghostUntil > performance.now() ? 0.58 : 1;
     ctx.fillStyle = activeEffects.tinyUntil > performance.now() ? "#ffd0bf" : "#fffdfd";
-    ctx.shadowBlur = ball.radius * 2.2;
+    ctx.shadowBlur = ball.radius * 2.8;
     ctx.shadowColor = activeEffects.ghostUntil > performance.now()
       ? "#8fffe0"
       : activeEffects.bigUntil > performance.now()
         ? "#ffeaa8"
         : "#b9f0ff";
     ctx.fill();
+    ctx.fillStyle = "rgba(255, 255, 255, 0.52)";
+    ctx.beginPath();
+    ctx.arc(-ball.radius * 0.26, -ball.radius * 0.28, Math.max(1.2, ball.radius * 0.28), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
     ctx.shadowBlur = 0;
     ctx.globalAlpha = 1;
   }
@@ -907,6 +1029,7 @@
     }
     const pulse = 0.55 + Math.sin(performance.now() / 170) * 0.45;
     const shieldY = HEIGHT - 17;
+    const centerX = WIDTH / 2;
     const beam = ctx.createLinearGradient(0, shieldY, WIDTH, shieldY);
     beam.addColorStop(0, "rgba(0, 0, 0, 0)");
     beam.addColorStop(0.18, "rgba(191, 140, 255, 0.95)");
@@ -918,7 +1041,7 @@
     ctx.strokeStyle = beam;
     ctx.lineWidth = 4 + pulse * 2;
     ctx.shadowBlur = 12 + pulse * 18;
-    ctx.shadowColor = "#bf8cff";
+    ctx.shadowColor = "#d5b4ff";
     ctx.beginPath();
     ctx.moveTo(0, shieldY);
     ctx.lineTo(WIDTH, shieldY);
@@ -940,23 +1063,51 @@
       ctx.arc(x, shieldY, 2.2 + pulse * 1.5, 0, Math.PI * 2);
       ctx.fill();
     }
+
+    ctx.strokeStyle = "#f7e8ff";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.arc(centerX - 13, shieldY - 8.5, 4.2, 0, Math.PI * 2);
+    ctx.arc(centerX + 13, shieldY - 8.5, 4.2, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    roundedRectPath(centerX - 15, shieldY - 13, 30, 18, 8);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(centerX - 6.2, shieldY - 4, 1.1, 0, Math.PI * 2);
+    ctx.arc(centerX + 6.2, shieldY - 4, 1.1, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(centerX, shieldY + 1.5, 5.3, Math.PI * 1.08, Math.PI * 1.92);
+    ctx.stroke();
     ctx.restore();
 
     ctx.fillStyle = "#d9b9ff";
     ctx.font = "700 12px monospace";
-    ctx.fillText("SHIELD WALL // ARMED", 14, HEIGHT - 27);
+    ctx.fillText("BEAR SHIELD // ARMED", 14, HEIGHT - 27);
   }
 
   function drawPowerups() {
     for (const powerup of powerups) {
       const config = POWERUP_CONFIG[powerup.type];
+      const fill = ctx.createLinearGradient(powerup.x, powerup.y - powerup.radius, powerup.x, powerup.y + powerup.radius);
+      fill.addColorStop(0, "rgba(255, 255, 255, 0.22)");
+      fill.addColorStop(0.2, "rgba(20, 25, 46, 0.96)");
+      fill.addColorStop(1, "rgba(9, 14, 28, 0.96)");
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = config.color;
       ctx.beginPath();
       ctx.arc(powerup.x, powerup.y, powerup.radius, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(5, 17, 25, 0.94)";
+      ctx.fillStyle = fill;
       ctx.fill();
       ctx.lineWidth = 2;
       ctx.strokeStyle = config.color;
       ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
+      ctx.beginPath();
+      ctx.arc(powerup.x - 3, powerup.y - 4, powerup.radius * 0.42, Math.PI * 1.05, Math.PI * 1.9);
+      ctx.fill();
       ctx.fillStyle = config.color;
       ctx.font = "700 15px monospace";
       ctx.textAlign = "center";
