@@ -430,7 +430,7 @@
     playTone(340 + combo * 14, 0.05, "square");
     if (brick.hp > 0) {
       triggerBallPulse(1.12, 0.9);
-      bearReact("tap");
+      bearReact("blink");
       triggerShake(0.08, 2);
       return;
     }
@@ -535,7 +535,7 @@
     combo = 0;
     activeEffects = createEmptyEffects();
     powerups = [];
-    bearReact("sad");
+    bearReact("pout");
     updateEffects(performance.now());
     playTone(100, 0.22, "sawtooth");
     if (lives <= 0) {
@@ -612,7 +612,7 @@
     } else if (type === "narrow") {
       activeEffects.narrowUntil = now + NARROW_EFFECT_DURATION;
       activeEffects.growUntil = 0;
-      bearReact("sad");
+      bearReact("pout");
     }
     burst(paddle.x + paddle.width / 2, paddle.y, POWERUP_CONFIG[type].color, 18);
     playTone(type === "shield" ? 540 : 460, 0.13, "triangle");
@@ -702,6 +702,7 @@
     const strengths = {
       idle: 0,
       ready: 0.5,
+      blink: 0.42,
       tap: 0.45,
       hit: 0.72,
       combo: 1.1,
@@ -709,6 +710,7 @@
       shield: 0.92,
       blast: 1.15,
       wave: 1.05,
+      pout: 0.82,
       sad: 0.8,
     };
     bearMood = {
@@ -897,7 +899,7 @@
   }
 
   function getBearMoodColor() {
-    if (bearMood.type === "sad") {
+    if (bearMood.type === "sad" || bearMood.type === "pout") {
       return "rgba(159, 212, 255, 0.28)";
     }
     if (bearMood.type === "shield") {
@@ -912,7 +914,7 @@
     if (bearMood.type === "happy") {
       return "rgba(255, 191, 229, 0.34)";
     }
-    if (bearMood.type === "hit" || bearMood.type === "tap") {
+    if (bearMood.type === "hit" || bearMood.type === "tap" || bearMood.type === "blink") {
       return "rgba(255, 193, 218, 0.29)";
     }
     return "rgba(255, 184, 223, 0.26)";
@@ -930,6 +932,9 @@
     const innerEar = "rgba(255, 209, 234, 0.18)";
     const cheekFill = "rgba(255, 186, 220, 0.12)";
     const noseFill = "rgba(255, 225, 240, 0.22)";
+    const earLiftLeft = mood === "happy" || mood === "combo" || mood === "wave" ? -3.8 * scale : mood === "pout" || mood === "sad" ? 2.8 * scale : 0;
+    const earLiftRight = mood === "happy" || mood === "combo" || mood === "wave" ? -2.6 * scale : mood === "pout" || mood === "sad" ? 3.4 * scale : 0;
+    const cheekPulse = mood === "happy" || mood === "combo" ? 0.66 : mood === "pout" ? 0.34 : 0.5;
 
     ctx.save();
     ctx.translate(0, -bob);
@@ -942,14 +947,14 @@
 
     ctx.fillStyle = `rgba(255, 255, 255, ${faceGlow})`;
     ctx.beginPath();
-    ctx.arc(x - faceWidth * 0.28, y - faceHeight * 0.47, earRadius, 0, Math.PI * 2);
-    ctx.arc(x + faceWidth * 0.28, y - faceHeight * 0.47, earRadius, 0, Math.PI * 2);
+    ctx.arc(x - faceWidth * 0.28, y - faceHeight * 0.47 + earLiftLeft, earRadius, 0, Math.PI * 2);
+    ctx.arc(x + faceWidth * 0.28, y - faceHeight * 0.47 + earLiftRight, earRadius, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = innerEar;
     ctx.beginPath();
-    ctx.arc(x - faceWidth * 0.28, y - faceHeight * 0.47, earRadius * 0.56, 0, Math.PI * 2);
-    ctx.arc(x + faceWidth * 0.28, y - faceHeight * 0.47, earRadius * 0.56, 0, Math.PI * 2);
+    ctx.arc(x - faceWidth * 0.28, y - faceHeight * 0.47 + earLiftLeft, earRadius * 0.56, 0, Math.PI * 2);
+    ctx.arc(x + faceWidth * 0.28, y - faceHeight * 0.47 + earLiftRight, earRadius * 0.56, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = `rgba(255, 255, 255, ${faceGlow})`;
@@ -958,28 +963,51 @@
     ctx.fill();
 
     ctx.beginPath();
-    ctx.arc(x - faceWidth * 0.28, y - faceHeight * 0.47, earRadius, 0, Math.PI * 2);
+    ctx.arc(x - faceWidth * 0.28, y - faceHeight * 0.47 + earLiftLeft, earRadius, 0, Math.PI * 2);
     ctx.stroke();
     ctx.beginPath();
-    ctx.arc(x + faceWidth * 0.28, y - faceHeight * 0.47, earRadius, 0, Math.PI * 2);
+    ctx.arc(x + faceWidth * 0.28, y - faceHeight * 0.47 + earLiftRight, earRadius, 0, Math.PI * 2);
     ctx.stroke();
 
     ctx.beginPath();
     ctx.ellipse(x, y, faceWidth * 0.5, faceHeight * 0.54, 0, 0, Math.PI * 2);
     ctx.stroke();
 
-    if (mood === "sad") {
+    if (mood === "sad" || mood === "pout") {
       ctx.beginPath();
-      ctx.moveTo(x - faceWidth * 0.2, y - faceHeight * 0.06);
-      ctx.lineTo(x - faceWidth * 0.1, y - faceHeight * 0.01);
-      ctx.moveTo(x + faceWidth * 0.2, y - faceHeight * 0.06);
-      ctx.lineTo(x + faceWidth * 0.1, y - faceHeight * 0.01);
+      ctx.moveTo(x - faceWidth * 0.2, y - faceHeight * 0.055);
+      ctx.lineTo(x - faceWidth * 0.1, y - faceHeight * 0.005);
+      ctx.moveTo(x + faceWidth * 0.2, y - faceHeight * 0.055);
+      ctx.lineTo(x + faceWidth * 0.1, y - faceHeight * 0.005);
       ctx.stroke();
     } else {
       if (mood === "happy") {
         ctx.beginPath();
         ctx.arc(x - faceWidth * 0.17, y - faceHeight * 0.05, eyeWidth * 1.15, Math.PI * 0.08, Math.PI * 0.92);
         ctx.arc(x + faceWidth * 0.17, y - faceHeight * 0.05, eyeWidth * 1.15, Math.PI * 0.08, Math.PI * 0.92);
+        ctx.stroke();
+      } else if (mood === "combo" || mood === "wave") {
+        ctx.beginPath();
+        drawStarEye(x - faceWidth * 0.17, y - faceHeight * 0.035, 5.7 * scale);
+        drawStarEye(x + faceWidth * 0.17, y - faceHeight * 0.035, 5.7 * scale);
+        ctx.stroke();
+      } else if (mood === "shield") {
+        ctx.beginPath();
+        ctx.moveTo(x - faceWidth * 0.22, y - faceHeight * 0.07);
+        ctx.lineTo(x - faceWidth * 0.12, y - faceHeight * 0.11);
+        ctx.moveTo(x + faceWidth * 0.12, y - faceHeight * 0.11);
+        ctx.lineTo(x + faceWidth * 0.22, y - faceHeight * 0.07);
+        ctx.moveTo(x - faceWidth * 0.2, y - faceHeight * 0.015);
+        ctx.lineTo(x - faceWidth * 0.1, y - faceHeight * 0.045);
+        ctx.moveTo(x + faceWidth * 0.1, y - faceHeight * 0.045);
+        ctx.lineTo(x + faceWidth * 0.2, y - faceHeight * 0.015);
+        ctx.stroke();
+      } else if (mood === "blink" || mood === "tap") {
+        ctx.beginPath();
+        ctx.moveTo(x - faceWidth * 0.22, y - faceHeight * 0.03);
+        ctx.lineTo(x - faceWidth * 0.12, y - faceHeight * 0.03);
+        ctx.moveTo(x + faceWidth * 0.12, y - faceHeight * 0.03);
+        ctx.lineTo(x + faceWidth * 0.22, y - faceHeight * 0.03);
         ctx.stroke();
       } else if (mood === "blast") {
         ctx.beginPath();
@@ -1019,21 +1047,29 @@
     ctx.arc(x - faceWidth * 0.24, y + faceHeight * 0.07, cheekRadius, 0, Math.PI * 2);
     ctx.arc(x + faceWidth * 0.24, y + faceHeight * 0.07, cheekRadius, 0, Math.PI * 2);
     ctx.fillStyle = cheekFill;
-    ctx.globalAlpha = 0.5 + intensity * 0.12;
+    ctx.globalAlpha = cheekPulse + intensity * 0.1;
     ctx.fill();
     ctx.globalAlpha = 1;
 
-    if (mood === "sad") {
+    if (mood === "sad" || mood === "pout") {
       ctx.beginPath();
-      ctx.arc(x, y + faceHeight * 0.2, 8.5 * scale, Math.PI * 1.14, Math.PI * 1.86, true);
+      ctx.arc(x, y + faceHeight * 0.22, mood === "pout" ? 10.2 * scale : 8.5 * scale, Math.PI * 1.12, Math.PI * 1.88, true);
       ctx.stroke();
     } else if (mood === "happy") {
       ctx.beginPath();
       ctx.arc(x, y + faceHeight * 0.18, 10.5 * scale, Math.PI * 0.12, Math.PI * 0.88);
       ctx.stroke();
+    } else if (mood === "combo" || mood === "wave") {
+      ctx.beginPath();
+      ctx.arc(x, y + faceHeight * 0.18, 11.4 * scale, Math.PI * 0.08, Math.PI * 0.92);
+      ctx.stroke();
     } else if (mood === "blast") {
       ctx.beginPath();
       ctx.arc(x, y + faceHeight * 0.2, 8.5 * scale, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (mood === "shield") {
+      ctx.beginPath();
+      ctx.arc(x, y + faceHeight * 0.16, 8.2 * scale, Math.PI * 0.2, Math.PI * 0.8);
       ctx.stroke();
     } else {
       ctx.beginPath();
@@ -1088,6 +1124,10 @@
         ctx.beginPath();
         ctx.arc(sx, sy, 3 + intensity * 1.8, 0, Math.PI * 2);
         ctx.fill();
+      } else if (bearMood.type === "wave" || bearMood.type === "combo") {
+        ctx.beginPath();
+        drawStarEye(sx, sy, 5 + intensity * 1.2);
+        ctx.stroke();
       } else if (bearMood.type === "blast") {
         ctx.beginPath();
         for (let point = 0; point < 8; point += 1) {
@@ -1103,6 +1143,12 @@
         }
         ctx.closePath();
         ctx.fill();
+      } else if (bearMood.type === "pout" || bearMood.type === "sad") {
+        ctx.beginPath();
+        ctx.moveTo(sx, sy - 2);
+        ctx.bezierCurveTo(sx - 5, sy + 1, sx - 2, sy + 8, sx, sy + 9);
+        ctx.bezierCurveTo(sx + 2, sy + 8, sx + 5, sy + 1, sx, sy - 2);
+        ctx.fill();
       } else {
         ctx.beginPath();
         ctx.moveTo(sx - 6, sy);
@@ -1113,7 +1159,7 @@
       }
     }
 
-    if (bearMood.type === "hit" || bearMood.type === "tap" || bearMood.type === "combo") {
+    if (bearMood.type === "hit" || bearMood.type === "tap" || bearMood.type === "blink" || bearMood.type === "combo") {
       ctx.globalAlpha = Math.min(0.75, 0.18 + intensity * 0.32);
       for (let index = 0; index < 6; index += 1) {
         const angle = (Math.PI * 2 * index) / 6 + time / 900;
@@ -1126,6 +1172,13 @@
       }
     }
 
+    if (bearMood.type === "shield") {
+      ctx.globalAlpha = Math.min(0.7, 0.22 + intensity * 0.24);
+      ctx.beginPath();
+      ctx.arc(x, orbitY + 6, radius * 0.92, Math.PI * 0.12, Math.PI * 0.88);
+      ctx.stroke();
+    }
+
     ctx.restore();
   }
 
@@ -1134,6 +1187,21 @@
     ctx.moveTo(x, y + 7 * scale);
     ctx.bezierCurveTo(x - 11 * scale, y - 1 * scale, x - 10 * scale, y - 12 * scale, x, y - 4 * scale);
     ctx.bezierCurveTo(x + 10 * scale, y - 12 * scale, x + 11 * scale, y - 1 * scale, x, y + 7 * scale);
+    ctx.closePath();
+  }
+
+  function drawStarEye(x, y, radius) {
+    for (let point = 0; point < 8; point += 1) {
+      const angle = (-Math.PI / 2) + (Math.PI * point) / 4;
+      const spike = point % 2 === 0 ? radius : radius * 0.44;
+      const px = x + Math.cos(angle) * spike;
+      const py = y + Math.sin(angle) * spike;
+      if (point === 0) {
+        ctx.moveTo(px, py);
+      } else {
+        ctx.lineTo(px, py);
+      }
+    }
     ctx.closePath();
   }
 
