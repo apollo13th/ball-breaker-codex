@@ -59,7 +59,7 @@
   let ballPulse = { x: 1, y: 1, life: 0 };
   let floatingTexts = [];
   let waveBanner = null;
-  let bearMood = { type: "idle", life: 0 };
+  let bearMood = { type: "idle", life: 0, strength: 0 };
   let shakeTime = 0;
   let shakeAmount = 0;
   let stickyAim = null;
@@ -173,7 +173,7 @@
     ballPulse = { x: 1, y: 1, life: 0 };
     floatingTexts = [];
     waveBanner = null;
-    bearMood = { type: "idle", life: 0 };
+    bearMood = { type: "idle", life: 0, strength: 0 };
     activeEffects = createEmptyEffects();
     shakeTime = 0;
     shakeAmount = 0;
@@ -648,6 +648,7 @@
     }
 
     bearMood.life = Math.max(0, bearMood.life - deltaSeconds * 1.35);
+    bearMood.strength = Math.max(0, bearMood.strength - deltaSeconds * 0.95);
 
     shakeTime = Math.max(0, shakeTime - deltaSeconds);
   }
@@ -669,7 +670,22 @@
   }
 
   function bearReact(type) {
-    bearMood = { type, life: 1 };
+    const strengths = {
+      idle: 0,
+      ready: 0.5,
+      tap: 0.45,
+      hit: 0.72,
+      combo: 1.1,
+      power: 0.96,
+      shield: 0.92,
+      wave: 1.05,
+      sad: 0.8,
+    };
+    bearMood = {
+      type,
+      life: 1,
+      strength: strengths[type] ?? 0.7,
+    };
   }
 
   function triggerShake(duration, amount) {
@@ -823,45 +839,75 @@
 
   function drawNeonBearBackdrop() {
     const moodIntensity = bearMood.life;
+    const reactionStrength = bearMood.strength;
     const moodColor = getBearMoodColor();
+    const idleDrift = Math.sin(performance.now() / 820) * 7;
+    const pulse = 1 + Math.sin(performance.now() / 135) * 0.015;
     const bears = [
-      { x: WIDTH * 0.21, y: HEIGHT * 0.19, scale: 0.56, color: "rgba(255, 184, 223, 0.12)" },
-      { x: WIDTH * 0.77, y: HEIGHT * 0.24, scale: 0.72, color: "rgba(173, 219, 255, 0.11)" },
-      { x: WIDTH * 0.52, y: HEIGHT * 0.6, scale: 1.08, color: moodIntensity > 0 ? moodColor : "rgba(212, 180, 255, 0.08)" },
+      { x: WIDTH * 0.2, y: HEIGHT * 0.18, scale: 0.5, color: "rgba(255, 184, 223, 0.1)" },
+      { x: WIDTH * 0.8, y: HEIGHT * 0.2, scale: 0.58, color: "rgba(173, 219, 255, 0.1)" },
     ];
-    for (const [index, bear] of bears.entries()) {
-      drawNeonBear(bear.x, bear.y, bear.scale, bear.color, index === 2 ? bearMood.type : "idle", index === 2 ? moodIntensity : 0);
+
+    for (const bear of bears) {
+      drawNeonBear(bear.x, bear.y, bear.scale, bear.color, "idle", 0.08);
     }
+
+    const centerX = WIDTH / 2;
+    const centerY = HEIGHT * 0.56 + idleDrift;
+    const mainColor = moodIntensity > 0 ? moodColor : "rgba(212, 180, 255, 0.14)";
+    const glow = ctx.createRadialGradient(centerX, centerY - HEIGHT * 0.03, 12, centerX, centerY, WIDTH * 0.46);
+    glow.addColorStop(0, moodIntensity > 0 ? moodColor.replace(/0\.\d+\)/, "0.18)") : "rgba(212, 180, 255, 0.13)");
+    glow.addColorStop(0.4, "rgba(173, 219, 255, 0.08)");
+    glow.addColorStop(1, "rgba(0, 0, 0, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+    drawNeonBear(centerX, centerY, 1.84 * pulse, mainColor, bearMood.type, Math.max(moodIntensity, reactionStrength));
+    drawBearReactionAccents(centerX, centerY, reactionStrength);
   }
 
   function getBearMoodColor() {
     if (bearMood.type === "sad") {
-      return "rgba(159, 212, 255, 0.18)";
+      return "rgba(159, 212, 255, 0.28)";
     }
     if (bearMood.type === "shield") {
-      return "rgba(213, 180, 255, 0.2)";
+      return "rgba(213, 180, 255, 0.3)";
     }
     if (bearMood.type === "combo" || bearMood.type === "wave") {
-      return "rgba(255, 232, 157, 0.2)";
+      return "rgba(255, 232, 157, 0.34)";
     }
     if (bearMood.type === "power") {
-      return "rgba(162, 255, 229, 0.18)";
+      return "rgba(162, 255, 229, 0.3)";
     }
-    return "rgba(255, 184, 223, 0.18)";
+    if (bearMood.type === "hit" || bearMood.type === "tap") {
+      return "rgba(255, 193, 218, 0.29)";
+    }
+    return "rgba(255, 184, 223, 0.26)";
   }
 
   function drawNeonBear(x, y, scale, color, mood = "idle", intensity = 0) {
     const faceWidth = 92 * scale;
     const faceHeight = 80 * scale;
     const earRadius = 18 * scale;
+    const bob = intensity > 0 ? Math.sin(performance.now() / 120) * intensity * 2.4 : 0;
 
     ctx.save();
+    ctx.translate(0, -bob);
     ctx.strokeStyle = color;
-    ctx.shadowColor = color.replace(/0\.\d+\)/, "0.22)");
+    ctx.shadowColor = color.replace(/0\.\d+\)/, "0.34)");
     ctx.shadowBlur = (16 + intensity * 18) * scale;
     ctx.lineWidth = 2.2 * scale;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.03)";
+    ctx.beginPath();
+    ctx.arc(x - faceWidth * 0.28, y - faceHeight * 0.42, earRadius * 0.9, 0, Math.PI * 2);
+    ctx.arc(x + faceWidth * 0.28, y - faceHeight * 0.42, earRadius * 0.9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    roundedRectPath(x - faceWidth / 2, y - faceHeight / 2, faceWidth, faceHeight, 24 * scale);
+    ctx.fill();
 
     ctx.beginPath();
     ctx.arc(x - faceWidth * 0.28, y - faceHeight * 0.42, earRadius, 0, Math.PI * 2);
@@ -905,12 +951,73 @@
       ctx.stroke();
     }
 
+    if (mood === "power" || mood === "combo" || mood === "wave") {
+      ctx.beginPath();
+      ctx.moveTo(x - faceWidth * 0.07, y + faceHeight * 0.2);
+      ctx.lineTo(x, y + faceHeight * 0.24 + intensity * 4 * scale);
+      ctx.lineTo(x + faceWidth * 0.07, y + faceHeight * 0.2);
+      ctx.stroke();
+    }
+
     if (intensity > 0) {
       ctx.globalAlpha = Math.min(0.24, intensity * 0.24);
       ctx.beginPath();
       ctx.arc(x, y, (faceWidth * 0.68) + intensity * 16 * scale, 0, Math.PI * 2);
       ctx.stroke();
     }
+    ctx.restore();
+  }
+
+  function drawBearReactionAccents(x, y, intensity) {
+    if (intensity <= 0.04) {
+      return;
+    }
+
+    const orbitY = y - 8;
+    const time = performance.now();
+    const accentColor = getBearMoodColor();
+    const radius = 104 + intensity * 18;
+    const sparkCount = bearMood.type === "combo" || bearMood.type === "wave" ? 8 : 5;
+
+    ctx.save();
+    ctx.strokeStyle = accentColor;
+    ctx.fillStyle = accentColor;
+    ctx.lineWidth = 1.8;
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = accentColor;
+    ctx.globalAlpha = Math.min(0.8, 0.22 + intensity * 0.32);
+
+    for (let index = 0; index < sparkCount; index += 1) {
+      const angle = (Math.PI * 2 * index) / sparkCount + time / 560;
+      const sx = x + Math.cos(angle) * radius;
+      const sy = orbitY + Math.sin(angle) * radius * 0.54;
+      if (bearMood.type === "power" || bearMood.type === "shield") {
+        ctx.beginPath();
+        ctx.arc(sx, sy, 3 + intensity * 1.8, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(sx - 6, sy);
+        ctx.lineTo(sx + 6, sy);
+        ctx.moveTo(sx, sy - 6);
+        ctx.lineTo(sx, sy + 6);
+        ctx.stroke();
+      }
+    }
+
+    if (bearMood.type === "hit" || bearMood.type === "tap" || bearMood.type === "combo") {
+      ctx.globalAlpha = Math.min(0.75, 0.18 + intensity * 0.32);
+      for (let index = 0; index < 6; index += 1) {
+        const angle = (Math.PI * 2 * index) / 6 + time / 900;
+        const inner = radius * 0.74;
+        const outer = radius * (0.92 + intensity * 0.08);
+        ctx.beginPath();
+        ctx.moveTo(x + Math.cos(angle) * inner, orbitY + Math.sin(angle) * inner * 0.55);
+        ctx.lineTo(x + Math.cos(angle) * outer, orbitY + Math.sin(angle) * outer * 0.55);
+        ctx.stroke();
+      }
+    }
+
     ctx.restore();
   }
 
