@@ -919,12 +919,17 @@
   }
 
   function drawNeonBear(x, y, scale, color, mood = "idle", intensity = 0) {
-    const faceWidth = 98 * scale;
-    const faceHeight = 84 * scale;
-    const earRadius = 20 * scale;
-    const cheekRadius = 11 * scale;
-    const eyeRadius = (3.6 + intensity * 1.8) * scale;
+    const faceWidth = 104 * scale;
+    const faceHeight = 90 * scale;
+    const earRadius = 21 * scale;
+    const cheekRadius = 8.5 * scale;
+    const eyeHeight = (7.4 + intensity * 1.8) * scale;
+    const eyeWidth = (5.2 + intensity * 1.3) * scale;
+    const faceGlow = Math.min(0.1, 0.045 + intensity * 0.04);
     const bob = intensity > 0 ? Math.sin(performance.now() / 120) * intensity * 2.4 : 0;
+    const innerEar = "rgba(255, 209, 234, 0.18)";
+    const cheekFill = "rgba(255, 186, 220, 0.12)";
+    const noseFill = "rgba(255, 225, 240, 0.22)";
 
     ctx.save();
     ctx.translate(0, -bob);
@@ -935,93 +940,112 @@
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
 
-    ctx.fillStyle = "rgba(255, 255, 255, 0.03)";
+    ctx.fillStyle = `rgba(255, 255, 255, ${faceGlow})`;
     ctx.beginPath();
-    ctx.arc(x - faceWidth * 0.29, y - faceHeight * 0.46, earRadius * 0.95, 0, Math.PI * 2);
-    ctx.arc(x + faceWidth * 0.29, y - faceHeight * 0.46, earRadius * 0.95, 0, Math.PI * 2);
+    ctx.arc(x - faceWidth * 0.28, y - faceHeight * 0.47, earRadius, 0, Math.PI * 2);
+    ctx.arc(x + faceWidth * 0.28, y - faceHeight * 0.47, earRadius, 0, Math.PI * 2);
     ctx.fill();
+
+    ctx.fillStyle = innerEar;
     ctx.beginPath();
-    ctx.ellipse(x, y, faceWidth * 0.52, faceHeight * 0.56, 0, 0, Math.PI * 2);
+    ctx.arc(x - faceWidth * 0.28, y - faceHeight * 0.47, earRadius * 0.56, 0, Math.PI * 2);
+    ctx.arc(x + faceWidth * 0.28, y - faceHeight * 0.47, earRadius * 0.56, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = `rgba(255, 255, 255, ${faceGlow})`;
+    ctx.beginPath();
+    ctx.ellipse(x, y, faceWidth * 0.5, faceHeight * 0.54, 0, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.beginPath();
-    ctx.arc(x - faceWidth * 0.29, y - faceHeight * 0.46, earRadius, 0, Math.PI * 2);
+    ctx.arc(x - faceWidth * 0.28, y - faceHeight * 0.47, earRadius, 0, Math.PI * 2);
     ctx.stroke();
     ctx.beginPath();
-    ctx.arc(x + faceWidth * 0.29, y - faceHeight * 0.46, earRadius, 0, Math.PI * 2);
+    ctx.arc(x + faceWidth * 0.28, y - faceHeight * 0.47, earRadius, 0, Math.PI * 2);
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.ellipse(x, y, faceWidth * 0.52, faceHeight * 0.56, 0, 0, Math.PI * 2);
+    ctx.ellipse(x, y, faceWidth * 0.5, faceHeight * 0.54, 0, 0, Math.PI * 2);
     ctx.stroke();
 
     if (mood === "sad") {
       ctx.beginPath();
-      ctx.moveTo(x - faceWidth * 0.23, y - faceHeight * 0.08);
-      ctx.lineTo(x - faceWidth * 0.12, y - faceHeight * 0.02);
-      ctx.moveTo(x + faceWidth * 0.23, y - faceHeight * 0.08);
-      ctx.lineTo(x + faceWidth * 0.12, y - faceHeight * 0.02);
+      ctx.moveTo(x - faceWidth * 0.2, y - faceHeight * 0.06);
+      ctx.lineTo(x - faceWidth * 0.1, y - faceHeight * 0.01);
+      ctx.moveTo(x + faceWidth * 0.2, y - faceHeight * 0.06);
+      ctx.lineTo(x + faceWidth * 0.1, y - faceHeight * 0.01);
       ctx.stroke();
     } else {
       if (mood === "happy") {
         ctx.beginPath();
-        ctx.arc(x - faceWidth * 0.18, y - faceHeight * 0.08, eyeRadius * 0.95, Math.PI * 0.1, Math.PI * 0.9);
-        ctx.arc(x + faceWidth * 0.18, y - faceHeight * 0.08, eyeRadius * 0.95, Math.PI * 0.1, Math.PI * 0.9);
+        ctx.arc(x - faceWidth * 0.17, y - faceHeight * 0.05, eyeWidth * 1.15, Math.PI * 0.08, Math.PI * 0.92);
+        ctx.arc(x + faceWidth * 0.17, y - faceHeight * 0.05, eyeWidth * 1.15, Math.PI * 0.08, Math.PI * 0.92);
         ctx.stroke();
       } else if (mood === "blast") {
         ctx.beginPath();
-        ctx.moveTo(x - faceWidth * 0.22, y - faceHeight * 0.11);
-        ctx.lineTo(x - faceWidth * 0.14, y - faceHeight * 0.01);
-        ctx.moveTo(x - faceWidth * 0.14, y - faceHeight * 0.11);
-        ctx.lineTo(x - faceWidth * 0.22, y - faceHeight * 0.01);
-        ctx.moveTo(x + faceWidth * 0.14, y - faceHeight * 0.11);
-        ctx.lineTo(x + faceWidth * 0.22, y - faceHeight * 0.01);
-        ctx.moveTo(x + faceWidth * 0.22, y - faceHeight * 0.11);
-        ctx.lineTo(x + faceWidth * 0.14, y - faceHeight * 0.01);
+        ctx.moveTo(x - faceWidth * 0.2, y - faceHeight * 0.1);
+        ctx.lineTo(x - faceWidth * 0.12, y - faceHeight * 0.01);
+        ctx.moveTo(x - faceWidth * 0.12, y - faceHeight * 0.1);
+        ctx.lineTo(x - faceWidth * 0.2, y - faceHeight * 0.01);
+        ctx.moveTo(x + faceWidth * 0.12, y - faceHeight * 0.1);
+        ctx.lineTo(x + faceWidth * 0.2, y - faceHeight * 0.01);
+        ctx.moveTo(x + faceWidth * 0.2, y - faceHeight * 0.1);
+        ctx.lineTo(x + faceWidth * 0.12, y - faceHeight * 0.01);
         ctx.stroke();
       } else {
         ctx.beginPath();
-        ctx.arc(x - faceWidth * 0.18, y - faceHeight * 0.06, eyeRadius, 0, Math.PI * 2);
-        ctx.arc(x + faceWidth * 0.18, y - faceHeight * 0.06, eyeRadius, 0, Math.PI * 2);
-        ctx.stroke();
+        ctx.ellipse(x - faceWidth * 0.17, y - faceHeight * 0.03, eyeWidth, eyeHeight, 0, 0, Math.PI * 2);
+        ctx.ellipse(x + faceWidth * 0.17, y - faceHeight * 0.03, eyeWidth, eyeHeight, 0, 0, Math.PI * 2);
+        ctx.fillStyle = color.replace(/0\.\d+\)/, "0.22)");
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255, 244, 250, 0.68)";
+        ctx.lineWidth = 1.25 * scale;
+        ctx.beginPath();
+        ctx.arc(x - faceWidth * 0.19, y - faceHeight * 0.08, 1.7 * scale, 0, Math.PI * 2);
+        ctx.arc(x + faceWidth * 0.15, y - faceHeight * 0.08, 1.7 * scale, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.2 * scale;
       }
     }
 
     ctx.beginPath();
-    ctx.ellipse(x, y + faceHeight * 0.1, 12 * scale, 9.5 * scale, 0, 0, Math.PI * 2);
+    ctx.ellipse(x, y + faceHeight * 0.06, 9.5 * scale, 7.8 * scale, 0, 0, Math.PI * 2);
+    ctx.fillStyle = noseFill;
+    ctx.fill();
     ctx.stroke();
+
     ctx.beginPath();
-    ctx.arc(x - faceWidth * 0.23, y + faceHeight * 0.08, cheekRadius, 0, Math.PI * 2);
-    ctx.arc(x + faceWidth * 0.23, y + faceHeight * 0.08, cheekRadius, 0, Math.PI * 2);
-    ctx.globalAlpha = 0.18 + intensity * 0.05;
-    ctx.stroke();
+    ctx.arc(x - faceWidth * 0.24, y + faceHeight * 0.07, cheekRadius, 0, Math.PI * 2);
+    ctx.arc(x + faceWidth * 0.24, y + faceHeight * 0.07, cheekRadius, 0, Math.PI * 2);
+    ctx.fillStyle = cheekFill;
+    ctx.globalAlpha = 0.5 + intensity * 0.12;
+    ctx.fill();
     ctx.globalAlpha = 1;
+
     if (mood === "sad") {
       ctx.beginPath();
-      ctx.arc(x, y + faceHeight * 0.2, 8 * scale, Math.PI * 1.12, Math.PI * 1.88, true);
+      ctx.arc(x, y + faceHeight * 0.2, 8.5 * scale, Math.PI * 1.14, Math.PI * 1.86, true);
       ctx.stroke();
     } else if (mood === "happy") {
       ctx.beginPath();
-      ctx.arc(x, y + faceHeight * 0.2, 11 * scale, Math.PI * 0.08, Math.PI * 0.92);
+      ctx.arc(x, y + faceHeight * 0.18, 10.5 * scale, Math.PI * 0.12, Math.PI * 0.88);
       ctx.stroke();
     } else if (mood === "blast") {
       ctx.beginPath();
-      ctx.arc(x, y + faceHeight * 0.22, 9 * scale, 0, Math.PI * 2);
+      ctx.arc(x, y + faceHeight * 0.2, 8.5 * scale, 0, Math.PI * 2);
       ctx.stroke();
     } else {
       ctx.beginPath();
-      ctx.moveTo(x, y + faceHeight * 0.03);
-      ctx.lineTo(x - 5.5 * scale, y + faceHeight * 0.12);
-      ctx.lineTo(x + 5.5 * scale, y + faceHeight * 0.12);
-      ctx.closePath();
+      ctx.arc(x, y + faceHeight * 0.16, 7.6 * scale, Math.PI * 0.16, Math.PI * 0.84);
       ctx.stroke();
     }
 
     if (mood === "happy" || mood === "combo" || mood === "wave") {
       ctx.beginPath();
-      ctx.moveTo(x - faceWidth * 0.07, y + faceHeight * 0.2);
-      ctx.lineTo(x, y + faceHeight * 0.24 + intensity * 4 * scale);
-      ctx.lineTo(x + faceWidth * 0.07, y + faceHeight * 0.2);
+      ctx.moveTo(x - faceWidth * 0.055, y + faceHeight * 0.17);
+      ctx.lineTo(x, y + faceHeight * 0.21 + intensity * 3.5 * scale);
+      ctx.lineTo(x + faceWidth * 0.055, y + faceHeight * 0.17);
       ctx.stroke();
     }
 
