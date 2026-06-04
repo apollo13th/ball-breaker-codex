@@ -934,7 +934,7 @@
     const noseFill = "rgba(255, 225, 240, 0.22)";
     const earLiftLeft = mood === "happy" || mood === "combo" || mood === "wave" ? -3.8 * scale : mood === "pout" || mood === "sad" ? 2.8 * scale : 0;
     const earLiftRight = mood === "happy" || mood === "combo" || mood === "wave" ? -2.6 * scale : mood === "pout" || mood === "sad" ? 3.4 * scale : 0;
-    const cheekPulse = mood === "happy" || mood === "combo" ? 0.66 : mood === "pout" ? 0.34 : 0.5;
+    const cheekPulse = mood === "happy" ? 0.82 : mood === "combo" ? 0.7 : mood === "pout" ? 0.34 : 0.5;
 
     ctx.save();
     ctx.translate(0, -bob);
@@ -983,8 +983,12 @@
     } else {
       if (mood === "happy") {
         ctx.beginPath();
-        ctx.arc(x - faceWidth * 0.17, y - faceHeight * 0.05, eyeWidth * 1.15, Math.PI * 0.08, Math.PI * 0.92);
-        ctx.arc(x + faceWidth * 0.17, y - faceHeight * 0.05, eyeWidth * 1.15, Math.PI * 0.08, Math.PI * 0.92);
+        ctx.arc(x - faceWidth * 0.17, y - faceHeight * 0.055, eyeWidth * 1.28, Math.PI * 0.12, Math.PI * 0.88);
+        ctx.arc(x + faceWidth * 0.17, y - faceHeight * 0.055, eyeWidth * 1.28, Math.PI * 0.12, Math.PI * 0.88);
+        ctx.moveTo(x - faceWidth * 0.23, y - faceHeight * 0.06);
+        ctx.lineTo(x - faceWidth * 0.2, y - faceHeight * 0.09);
+        ctx.moveTo(x + faceWidth * 0.2, y - faceHeight * 0.09);
+        ctx.lineTo(x + faceWidth * 0.23, y - faceHeight * 0.06);
         ctx.stroke();
       } else if (mood === "combo" || mood === "wave") {
         ctx.beginPath();
@@ -1056,8 +1060,15 @@
       ctx.arc(x, y + faceHeight * 0.22, mood === "pout" ? 10.2 * scale : 8.5 * scale, Math.PI * 1.12, Math.PI * 1.88, true);
       ctx.stroke();
     } else if (mood === "happy") {
+      ctx.fillStyle = "rgba(255, 210, 230, 0.18)";
       ctx.beginPath();
-      ctx.arc(x, y + faceHeight * 0.18, 10.5 * scale, Math.PI * 0.12, Math.PI * 0.88);
+      ctx.arc(x, y + faceHeight * 0.205, 11.8 * scale, Math.PI * 0.1, Math.PI * 0.9);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x, y + faceHeight * 0.185, 11.8 * scale, Math.PI * 0.08, Math.PI * 0.92);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x, y + faceHeight * 0.22, 4.3 * scale, Math.PI * 0.08, Math.PI * 0.92);
       ctx.stroke();
     } else if (mood === "combo" || mood === "wave") {
       ctx.beginPath();
