@@ -60,6 +60,7 @@
   let floatingTexts = [];
   let waveBanner = null;
   let bearMood = { type: "idle", life: 0, strength: 0 };
+  let paddlePointer = null;
   let shakeTime = 0;
   let shakeAmount = 0;
   let stickyAim = null;
@@ -70,6 +71,7 @@
     width: BASE_PADDLE_WIDTH,
     height: 13,
     speed: 430,
+    targetX: WIDTH / 2 - BASE_PADDLE_WIDTH / 2,
   };
 
   const ball = {
@@ -159,6 +161,10 @@
     stickyAim = null;
   }
 
+  function clampPaddleX(x) {
+    return clamp(x, 0, WIDTH - paddle.width);
+  }
+
   function resetGame() {
     score = 0;
     lives = 3;
@@ -177,8 +183,10 @@
     activeEffects = createEmptyEffects();
     shakeTime = 0;
     shakeAmount = 0;
+    paddlePointer = null;
     paddle.width = BASE_PADDLE_WIDTH;
     paddle.x = WIDTH / 2 - paddle.width / 2;
+    paddle.targetX = paddle.x;
     createBricks();
     resetBall();
     updateHud();
@@ -261,13 +269,31 @@
   }
 
   function updatePaddle(deltaSeconds) {
-    if (keys.left) {
-      paddle.x -= paddle.speed * deltaSeconds;
+    if (paddlePointer?.mode === "drag") {
+      paddle.x = clampPaddleX(paddlePointer.nextX - paddlePointer.dragOffset);
+      paddle.targetX = paddle.x;
+    } else {
+      let steer = 0;
+      if (keys.left) {
+        steer -= 1;
+      }
+      if (keys.right) {
+        steer += 1;
+      }
+      if (steer !== 0) {
+        paddle.targetX = clampPaddleX(paddle.targetX + steer * paddle.speed * deltaSeconds);
+      }
+
+      const delta = paddle.targetX - paddle.x;
+      const maxStep = paddle.speed * deltaSeconds;
+      if (Math.abs(delta) <= maxStep) {
+        paddle.x = paddle.targetX;
+      } else {
+        paddle.x += Math.sign(delta) * maxStep;
+      }
     }
-    if (keys.right) {
-      paddle.x += paddle.speed * deltaSeconds;
-    }
-    paddle.x = clamp(paddle.x, 0, WIDTH - paddle.width);
+
+    paddle.x = clampPaddleX(paddle.x);
   }
 
   function updateEffects(now) {
@@ -280,7 +306,9 @@
       paddle.width = BASE_PADDLE_WIDTH;
     }
     if (paddle.width !== previousWidth) {
-      paddle.x = clamp(paddle.x - (paddle.width - previousWidth) / 2, 0, WIDTH - paddle.width);
+      const centeredX = paddle.x - (paddle.width - previousWidth) / 2;
+      paddle.x = clampPaddleX(centeredX);
+      paddle.targetX = clampPaddleX(paddle.targetX - (paddle.width - previousWidth) / 2);
     }
 
     if (activeEffects.bigUntil > now) {
@@ -1716,10 +1744,38 @@
     }
   }
 
-  function movePaddleTo(clientX) {
-    const bounds = canvas.getBoundingClientRect();
-    const canvasX = ((clientX - bounds.left) / bounds.width) * WIDTH;
-    paddle.x = clamp(canvasX - paddle.width / 2, 0, WIDTH - paddle.width);
+  function beginPaddlePointer(event, point) {
+    const dragMode = pointNearPaddle(point) ? "drag" : "target";
+    paddlePointer = {
+      id: event.pointerId,
+      mode: dragMode,
+      dragOffset: point.x - paddle.x,
+      nextX: point.x,
+    };
+    if (dragMode === "target") {
+      paddlePointer.dragOffset = paddle.width / 2;
+      paddlePointer.nextX = point.x;
+      paddle.targetX = clampPaddleX(point.x - paddle.width / 2);
+    } else {
+      paddle.targetX = paddle.x;
+    }
+  }
+
+  function updatePaddlePointer(event) {
+    if (!paddlePointer || event.pointerId !== paddlePointer.id) {
+      return;
+    }
+    const point = canvasPoint(event);
+    paddlePointer.nextX = point.x;
+    if (paddlePointer.mode === "target") {
+      paddle.targetX = clampPaddleX(point.x - paddle.width / 2);
+    }
+  }
+
+  function releasePaddlePointer(pointerId) {
+    if (paddlePointer && paddlePointer.id === pointerId) {
+      paddlePointer = null;
+    }
   }
 
   function canvasPoint(event) {
@@ -1757,6 +1813,9 @@
 
   function holdDirection(direction, held) {
     keys[direction] = held;
+    if (held) {
+      paddlePointer = null;
+    }
   }
 
   function bindHoldButton(button, direction) {
@@ -1808,7 +1867,9 @@
       stickyAim = canvasPoint(event);
       return;
     }
-    movePaddleTo(event.clientX);
+    if (paddlePointer) {
+      updatePaddlePointer(event);
+    }
   });
 
   canvas.addEventListener("pointerdown", (event) => {
@@ -1821,11 +1882,22 @@
       }
       return;
     }
-    movePaddleTo(event.clientX);
+    try {
+      canvas.setPointerCapture?.(event.pointerId);
+    } catch {
+      // Synthetic or browser-managed pointers may not support capture here.
+    }
+    beginPaddlePointer(event, point);
     if (state === "playing") {
       launchBall();
     }
   });
+
+  for (const eventName of ["pointerup", "pointercancel"]) {
+    canvas.addEventListener(eventName, (event) => {
+      releasePaddlePointer(event.pointerId);
+    });
+  }
 
   window.__ballBreaker = {
     activatePowerup,
