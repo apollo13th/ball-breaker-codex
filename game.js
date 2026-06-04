@@ -452,6 +452,7 @@
     shockwaves.push({ x: origin.x + origin.width / 2, y: origin.y + origin.height / 2, radius: 5, life: 0.55 });
     triggerShake(0.25, Math.min(10, 5 + destroyed));
     playTone(110, 0.2, "sawtooth");
+    bearReact("blast");
   }
 
   function reflectBallFromBrick(brick) {
@@ -562,24 +563,24 @@
     if (type === "grow") {
       activeEffects.growUntil = now + EFFECT_DURATION;
       activeEffects.narrowUntil = 0;
-      bearReact("power");
+      bearReact("happy");
     } else if (type === "big") {
       activeEffects.bigUntil = now + EFFECT_DURATION;
       activeEffects.tinyUntil = 0;
-      bearReact("power");
+      bearReact("happy");
     } else if (type === "shield") {
       activeEffects.shield = true;
       bearReact("shield");
     } else if (type === "sticky") {
       activeEffects.sticky = true;
-      bearReact("power");
+      bearReact("happy");
     } else if (type === "ghost") {
       activeEffects.ghostUntil = now + SHORT_EFFECT_DURATION;
-      bearReact("power");
+      bearReact("happy");
     } else if (type === "tiny") {
       activeEffects.tinyUntil = now + SHORT_EFFECT_DURATION;
       activeEffects.bigUntil = 0;
-      bearReact("power");
+      bearReact("happy");
     } else if (type === "narrow") {
       activeEffects.narrowUntil = now + NARROW_EFFECT_DURATION;
       activeEffects.growUntil = 0;
@@ -676,8 +677,9 @@
       tap: 0.45,
       hit: 0.72,
       combo: 1.1,
-      power: 0.96,
+      happy: 0.98,
       shield: 0.92,
+      blast: 1.15,
       wave: 1.05,
       sad: 0.8,
     };
@@ -873,11 +875,14 @@
     if (bearMood.type === "shield") {
       return "rgba(213, 180, 255, 0.3)";
     }
+    if (bearMood.type === "blast") {
+      return "rgba(255, 183, 120, 0.36)";
+    }
     if (bearMood.type === "combo" || bearMood.type === "wave") {
       return "rgba(255, 232, 157, 0.34)";
     }
-    if (bearMood.type === "power") {
-      return "rgba(162, 255, 229, 0.3)";
+    if (bearMood.type === "happy") {
+      return "rgba(255, 191, 229, 0.34)";
     }
     if (bearMood.type === "hit" || bearMood.type === "tap") {
       return "rgba(255, 193, 218, 0.29)";
@@ -886,9 +891,11 @@
   }
 
   function drawNeonBear(x, y, scale, color, mood = "idle", intensity = 0) {
-    const faceWidth = 92 * scale;
-    const faceHeight = 80 * scale;
-    const earRadius = 18 * scale;
+    const faceWidth = 98 * scale;
+    const faceHeight = 84 * scale;
+    const earRadius = 20 * scale;
+    const cheekRadius = 11 * scale;
+    const eyeRadius = (3.6 + intensity * 1.8) * scale;
     const bob = intensity > 0 ? Math.sin(performance.now() / 120) * intensity * 2.4 : 0;
 
     ctx.save();
@@ -902,22 +909,22 @@
 
     ctx.fillStyle = "rgba(255, 255, 255, 0.03)";
     ctx.beginPath();
-    ctx.arc(x - faceWidth * 0.28, y - faceHeight * 0.42, earRadius * 0.9, 0, Math.PI * 2);
-    ctx.arc(x + faceWidth * 0.28, y - faceHeight * 0.42, earRadius * 0.9, 0, Math.PI * 2);
+    ctx.arc(x - faceWidth * 0.29, y - faceHeight * 0.46, earRadius * 0.95, 0, Math.PI * 2);
+    ctx.arc(x + faceWidth * 0.29, y - faceHeight * 0.46, earRadius * 0.95, 0, Math.PI * 2);
     ctx.fill();
     ctx.beginPath();
-    roundedRectPath(x - faceWidth / 2, y - faceHeight / 2, faceWidth, faceHeight, 24 * scale);
+    ctx.ellipse(x, y, faceWidth * 0.52, faceHeight * 0.56, 0, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.beginPath();
-    ctx.arc(x - faceWidth * 0.28, y - faceHeight * 0.42, earRadius, 0, Math.PI * 2);
+    ctx.arc(x - faceWidth * 0.29, y - faceHeight * 0.46, earRadius, 0, Math.PI * 2);
     ctx.stroke();
     ctx.beginPath();
-    ctx.arc(x + faceWidth * 0.28, y - faceHeight * 0.42, earRadius, 0, Math.PI * 2);
+    ctx.arc(x + faceWidth * 0.29, y - faceHeight * 0.46, earRadius, 0, Math.PI * 2);
     ctx.stroke();
 
     ctx.beginPath();
-    roundedRectPath(x - faceWidth / 2, y - faceHeight / 2, faceWidth, faceHeight, 24 * scale);
+    ctx.ellipse(x, y, faceWidth * 0.52, faceHeight * 0.56, 0, 0, Math.PI * 2);
     ctx.stroke();
 
     if (mood === "sad") {
@@ -928,19 +935,50 @@
       ctx.lineTo(x + faceWidth * 0.12, y - faceHeight * 0.02);
       ctx.stroke();
     } else {
-      const eyeRadius = (3.4 + intensity * 1.6) * scale;
-      ctx.beginPath();
-      ctx.arc(x - faceWidth * 0.18, y - faceHeight * 0.06, eyeRadius, 0, Math.PI * 2);
-      ctx.arc(x + faceWidth * 0.18, y - faceHeight * 0.06, eyeRadius, 0, Math.PI * 2);
-      ctx.stroke();
+      if (mood === "happy") {
+        ctx.beginPath();
+        ctx.arc(x - faceWidth * 0.18, y - faceHeight * 0.08, eyeRadius * 0.95, Math.PI * 0.1, Math.PI * 0.9);
+        ctx.arc(x + faceWidth * 0.18, y - faceHeight * 0.08, eyeRadius * 0.95, Math.PI * 0.1, Math.PI * 0.9);
+        ctx.stroke();
+      } else if (mood === "blast") {
+        ctx.beginPath();
+        ctx.moveTo(x - faceWidth * 0.22, y - faceHeight * 0.11);
+        ctx.lineTo(x - faceWidth * 0.14, y - faceHeight * 0.01);
+        ctx.moveTo(x - faceWidth * 0.14, y - faceHeight * 0.11);
+        ctx.lineTo(x - faceWidth * 0.22, y - faceHeight * 0.01);
+        ctx.moveTo(x + faceWidth * 0.14, y - faceHeight * 0.11);
+        ctx.lineTo(x + faceWidth * 0.22, y - faceHeight * 0.01);
+        ctx.moveTo(x + faceWidth * 0.22, y - faceHeight * 0.11);
+        ctx.lineTo(x + faceWidth * 0.14, y - faceHeight * 0.01);
+        ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.arc(x - faceWidth * 0.18, y - faceHeight * 0.06, eyeRadius, 0, Math.PI * 2);
+        ctx.arc(x + faceWidth * 0.18, y - faceHeight * 0.06, eyeRadius, 0, Math.PI * 2);
+        ctx.stroke();
+      }
     }
 
     ctx.beginPath();
-    ctx.arc(x, y + faceHeight * 0.08, 11 * scale, 0, Math.PI * 2);
+    ctx.ellipse(x, y + faceHeight * 0.1, 12 * scale, 9.5 * scale, 0, 0, Math.PI * 2);
     ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x - faceWidth * 0.23, y + faceHeight * 0.08, cheekRadius, 0, Math.PI * 2);
+    ctx.arc(x + faceWidth * 0.23, y + faceHeight * 0.08, cheekRadius, 0, Math.PI * 2);
+    ctx.globalAlpha = 0.18 + intensity * 0.05;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
     if (mood === "sad") {
       ctx.beginPath();
       ctx.arc(x, y + faceHeight * 0.2, 8 * scale, Math.PI * 1.12, Math.PI * 1.88, true);
+      ctx.stroke();
+    } else if (mood === "happy") {
+      ctx.beginPath();
+      ctx.arc(x, y + faceHeight * 0.2, 11 * scale, Math.PI * 0.08, Math.PI * 0.92);
+      ctx.stroke();
+    } else if (mood === "blast") {
+      ctx.beginPath();
+      ctx.arc(x, y + faceHeight * 0.22, 9 * scale, 0, Math.PI * 2);
       ctx.stroke();
     } else {
       ctx.beginPath();
@@ -951,7 +989,7 @@
       ctx.stroke();
     }
 
-    if (mood === "power" || mood === "combo" || mood === "wave") {
+    if (mood === "happy" || mood === "combo" || mood === "wave") {
       ctx.beginPath();
       ctx.moveTo(x - faceWidth * 0.07, y + faceHeight * 0.2);
       ctx.lineTo(x, y + faceHeight * 0.24 + intensity * 4 * scale);
@@ -991,9 +1029,27 @@
       const angle = (Math.PI * 2 * index) / sparkCount + time / 560;
       const sx = x + Math.cos(angle) * radius;
       const sy = orbitY + Math.sin(angle) * radius * 0.54;
-      if (bearMood.type === "power" || bearMood.type === "shield") {
+      if (bearMood.type === "happy") {
+        drawHeart(sx, sy, 0.58 + intensity * 0.12);
+        ctx.fill();
+      } else if (bearMood.type === "shield") {
         ctx.beginPath();
         ctx.arc(sx, sy, 3 + intensity * 1.8, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (bearMood.type === "blast") {
+        ctx.beginPath();
+        for (let point = 0; point < 8; point += 1) {
+          const pointAngle = (Math.PI * 2 * point) / 8;
+          const spike = point % 2 === 0 ? 7 + intensity * 2 : 3 + intensity;
+          const px = sx + Math.cos(pointAngle) * spike;
+          const py = sy + Math.sin(pointAngle) * spike;
+          if (point === 0) {
+            ctx.moveTo(px, py);
+          } else {
+            ctx.lineTo(px, py);
+          }
+        }
+        ctx.closePath();
         ctx.fill();
       } else {
         ctx.beginPath();
@@ -1019,6 +1075,14 @@
     }
 
     ctx.restore();
+  }
+
+  function drawHeart(x, y, scale) {
+    ctx.beginPath();
+    ctx.moveTo(x, y + 7 * scale);
+    ctx.bezierCurveTo(x - 11 * scale, y - 1 * scale, x - 10 * scale, y - 12 * scale, x, y - 4 * scale);
+    ctx.bezierCurveTo(x + 10 * scale, y - 12 * scale, x + 11 * scale, y - 1 * scale, x, y + 7 * scale);
+    ctx.closePath();
   }
 
   function drawBricks() {
